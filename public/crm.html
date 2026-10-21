@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" />
-<link rel="stylesheet" href="/crm-assets/crm.css?v=14" />
+<link rel="stylesheet" href="/crm-assets/crm.css?v=16" />
 </head>
 <body>
 
@@ -45,26 +45,28 @@
     <a class="btn primary" id="igReconnect" href="/api/crm/instagram/connect">Reconnect Instagram</a>
   </section>
   <section class="stats" aria-label="Summary">
-    <div class="card stat"><b id="statTotal">0</b><span>Total leads</span></div>
-    <div class="card stat"><b id="statWeek">0</b><span>This week</span></div>
-    <div class="card stat"><b id="statNew">0</b><span>To contact</span></div>
-    <div class="card storage" aria-label="Storage">
-      <div class="meter"><div class="top"><label>Photos</label><span id="txtPhotos">...</span></div><div class="bar"><i id="barPhotos"></i></div></div>
-      <div class="meter"><div class="top"><label>Database</label><span id="txtDb">...</span></div><div class="bar"><i id="barDb"></i></div></div>
-    </div>
+    <button class="card stat" type="button" data-quick="all"><b id="statTotal">0</b><span>Total leads</span></button>
+    <button class="card stat" type="button" data-quick="new"><b id="statNew">0</b><span>New, to contact</span></button>
+    <button class="card stat alert" type="button" data-quick="attention"><b id="statAttn">0</b><span>Needs your attention</span></button>
+    <button class="card stat" type="button" data-quick="calls"><b id="statCalls">0</b><span>Calls booked</span></button>
   </section>
+  <div class="toolbar">
+    <div class="search">
+      <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
+      <input id="search" class="field" type="search" placeholder="Search name, brand, service, city" aria-label="Search leads" autocomplete="off" />
+    </div>
+    <select id="stageFilter" class="field" aria-label="Filter by assistant stage">
+      <option value="">All stages</option><option value="Needs human">Needs human</option><option value="Active">Active</option><option value="Qualifying">Qualifying</option><option value="Nurtured">Nurtured</option><option value="Disqualified">Disqualified</option><option value="New">New</option>
+    </select>
+    <select id="sortBy" class="field" aria-label="Sort leads"><option value="newest">Newest first</option><option value="attention">Needs attention first</option><option value="oldest">Oldest first</option><option value="name">Name A to Z</option></select>
+    <div class="seg view-toggle" id="viewToggle" role="tablist" aria-label="View"><button type="button" data-view="list" class="on">List</button><button type="button" data-view="board">Board</button></div>
+  </div>
 
   <div class="split" id="split">
     <section class="card list-card" id="listCard">
-      <div class="controls">
-        <div class="search">
-          <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>
-          <input id="search" class="field" type="search" placeholder="Search leads" aria-label="Search leads" autocomplete="off" />
-        </div>
-        <div class="controls-row">
-          <div class="seg" id="filters" role="tablist" aria-label="Filter leads"></div>
-          <button class="btn sm plain" id="selectToggle" type="button">Select</button>
-        </div>
+      <div class="controls" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)">
+        <div class="seg" id="filters" role="tablist" aria-label="Filter leads" style="flex:1;overflow-x:auto"></div>
+        <button class="btn sm plain" id="selectToggle" type="button">Select</button>
       </div>
       <div id="leadList" class="leads" role="list"></div>
       <div class="bulkbar" id="bulkbar">
@@ -78,7 +80,9 @@
       <div class="detail-bar"><button class="btn plain" id="backBtn" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>Leads</button></div>
       <div id="detailBody"></div>
     </aside>
+    <div class="board" id="board" aria-label="Pipeline board"></div>
   </div>
+  <div class="scrim" id="scrim"></div>
 </main>
 
 <div id="lightbox" class="overlay lightbox">
@@ -100,6 +104,10 @@
     <div class="opt"><label>Remove</label><div class="seg wide" id="optScope"><button type="button" data-v="photos" class="on">Photos only</button><button type="button" data-v="leads">Whole leads</button></div></div>
     <div class="opt"><label>Older than</label><div class="seg wide" id="optDays"><button type="button" data-v="30">30 days</button><button type="button" data-v="90" class="on">90 days</button><button type="button" data-v="180">6 months</button><button type="button" data-v="365">1 year</button></div></div>
     <div class="opt"><label>Which leads</label><div class="seg wide" id="optStatus"><button type="button" data-v="closed" class="on">Closed only</button><button type="button" data-v="any">All statuses</button></div></div>
+    <div class="storage" aria-label="Storage">
+      <div class="meter"><div class="top"><label>Photos</label><span id="txtPhotos">...</span></div><div class="bar"><i id="barPhotos"></i></div></div>
+      <div class="meter"><div class="top"><label>Database</label><span id="txtDb">...</span></div><div class="bar"><i id="barDb"></i></div></div>
+    </div>
     <div class="preview" id="cleanupPreview">Checking...</div>
     <div class="row-btns">
       <button class="btn sm" id="cleanupCsv" type="button">Download CSV first</button>
@@ -116,6 +124,6 @@
 
 <div class="toast" id="toast" role="status"></div>
 
-<script src="/crm-assets/crm.js?v=14"></script>
+<script src="/crm-assets/crm.js?v=16"></script>
 </body>
 </html>

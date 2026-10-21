@@ -30,7 +30,8 @@ module.exports = {
   port: num(env.PORT, 3000),
   dbPath: path.resolve(ROOT, env.DB_PATH || 'data/funnel.db'),
   // Postgres connection string (Supabase pooler). When set it replaces the local SQLite file.
-  databaseUrl: env.DATABASE_URL || '',
+  // LOCAL_ONLY=1 forces the local SQLite file even when a production DATABASE_URL sits in .env (safe previews).
+  databaseUrl: env.LOCAL_ONLY ? '' : (env.DATABASE_URL || ''),
   cronSecret: env.CRON_SECRET || '',
   // A second, narrower login: the studio's own team gets this password and sees only the Lead Inbox (/crm).
   crmPassword: env.CRM_PASSWORD || '',

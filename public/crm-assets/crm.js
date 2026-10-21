@@ -6,8 +6,14 @@
 
   var $ = function (id) { return document.getElementById(id); };
   var STATUS_NEXT = { new: 'contacted', contacted: 'closed', closed: 'new' };
-  var state = { leads: [], filter: 'all', query: '', openId: null, selectMode: false, selected: new Set(), sig: '', leadSig: {}, seen: null };
+  var state = { leads: [], filter: 'all', stage: '', sort: 'newest', view: 'list', query: '', openId: null, selectMode: false, selected: new Set(), sig: '', leadSig: {}, seen: null };
   var toastTimer = null;
+  try { state.view = localStorage.getItem('crmView') === 'board' ? 'board' : 'list'; } catch (e) { /* storage blocked: default view */ }
+  function usesDrawer() { return isNarrow() || state.view === 'board'; }
+  function needsAttention(l) { return l.stage === 'Needs human'; }
+  var STAGE_CLASS = { 'Needs human': 'st-human', Active: 'st-active', Nurtured: 'st-nurtured', Disqualified: 'st-disqualified', Qualifying: 'st-qualifying', New: 'st-new' };
+  function stageChip(l) { return l.stage ? '<span class="chip ' + (STAGE_CLASS[l.stage] || '') + '">' + esc(l.stage) + '</span>' : ''; }
+  function callChip(l) { return l.call ? '<span class="chip call">' + ICON.phone + esc(l.call) + '</span>' : ''; }
 
   // ---------- small helpers ----------
   function esc(v) { var d = document.createElement('div'); d.textContent = v == null ? '' : String(v); return d.innerHTML; }
@@ -146,17 +152,30 @@
   // ---------- list ----------
   function visibleLeads() {
     var q = state.query.trim().toLowerCase();
-    return state.leads.filter(function (l) {
-      if (state.filter !== 'all' && l.status !== state.filter) return false;
+    var out = state.leads.filter(function (l) {
+      if (state.filter === 'attention') { if (!needsAttention(l)) return false; }
+      else if (state.filter === 'calls') { if (!l.call) return false; }
+      else if (state.filter !== 'all' && l.status !== state.filter) return false;
+      if (state.stage && l.stage !== state.stage) return false;
       if (!q) return true;
-      return [l.name, l.contact, l.projectType, l.location, l.summary, l.source].join(' ').toLowerCase().indexOf(q) >= 0;
+      return [l.name, l.contact, l.projectType, l.location, l.summary, l.source, l.stage].join(' ').toLowerCase().indexOf(q) >= 0;
     });
+    var t = function (l) { return new Date(l.time).getTime(); };
+    if (state.sort === 'oldest') out.sort(function (x, y) { return t(x) - t(y); });
+    else if (state.sort === 'name') out.sort(function (x, y) { return String(x.name || '').localeCompare(String(y.name || '')); });
+    else if (state.sort === 'attention') out.sort(function (x, y) { return (needsAttention(y) - needsAttention(x)) || (t(y) - t(x)); });
+    else out.sort(function (x, y) { return t(y) - t(x); });
+    return out;
   }
   function renderStats() {
-    var week = Date.now() - 7 * 86400000;
     $('statTotal').textContent = state.leads.length;
-    $('statWeek').textContent = state.leads.filter(function (l) { return new Date(l.time).getTime() > week; }).length;
     $('statNew').textContent = state.leads.filter(function (l) { return l.status === 'new'; }).length;
+    $('statAttn').textContent = state.leads.filter(needsAttention).length;
+    $('statCalls').textContent = state.leads.filter(function (l) { return !!l.call; }).length;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-quick]'), function (b) {
+      var q = b.dataset.quick;
+      b.classList.toggle('on', q === state.filter && q !== 'all');
+    });
     var counts = { all: state.leads.length, new: 0, contacted: 0, closed: 0 };
     state.leads.forEach(function (l) { counts[l.status] = (counts[l.status] || 0) + 1; });
     $('filters').innerHTML = ['all', 'new', 'contacted', 'closed'].map(function (f) {
@@ -168,20 +187,20 @@
     var shown = visibleLeads();
     $('listCard').classList.toggle('select-mode', state.selectMode);
     $('selectToggle').textContent = state.selectMode ? 'Done' : 'Select';
+    renderBoard(shown);
     if (!shown.length) {
-      list.innerHTML = '<div class="empty">' + ICON.users + '<b>' + (state.leads.length ? 'Nothing here' : 'No leads yet') + '</b>' +
-        (state.leads.length ? 'No leads match this view.' : 'Instagram and website conversations appear here as soon as someone shares their details.') + '</div>';
+      list.innerHTML = '<div class="empty">' + ICON.users + '<div><b>' + (state.leads.length ? 'Nothing here' : 'No leads yet') + '</b>' +
+        (state.leads.length ? 'No leads match this view. Try clearing the search or filters.' : 'Instagram conversations appear here as soon as someone messages the account.') + '</div></div>';
       updateBulk();
       return;
     }
     list.innerHTML = shown.map(function (l) {
       var sub = [l.projectType, l.location].filter(Boolean).join(' · ') || l.contact || 'No details yet';
-      return '<div class="row' + (l.id === state.openId && !state.selectMode ? ' active' : '') + (state.selected.has(l.id) ? ' picked' : '') + '" role="listitem" tabindex="0" data-id="' + l.id + '">' +
+      return '<div class="row' + (needsAttention(l) ? ' attn' : '') + (l.id === state.openId && !state.selectMode ? ' active' : '') + (state.selected.has(l.id) ? ' picked' : '') + '" role="listitem" tabindex="0" data-id="' + l.id + '">' +
         '<span class="check">' + ICON.check + '</span>' +
         '<span class="avatar" style="background:' + tint(l.name) + '">' + esc(initials(l.name)) + '</span>' +
-        '<div class="main"><div class="name">' + esc(l.name || 'Unknown') + '</div><div class="sub">' + esc(sub) + '</div>' +
-        '<div class="meta"><span class="chip">' + sourceIcon(l) + esc(l.source) + '</span><span class="chip ' + l.status + '">' + statusLabel(l.status) + '</span></div></div>' +
-        '<span class="when">' + timeAgo(l.time) + '</span></div>';
+        '<div class="main"><div class="top"><div class="name">' + esc(l.name || 'Unknown') + '</div><span class="when">' + timeAgo(l.time) + '</span></div><div class="sub">' + esc(sub) + '</div>' +
+        '<div class="meta">' + stageChip(l) + callChip(l) + '<span class="chip ' + l.status + '">' + statusLabel(l.status) + '</span><span class="chip">' + sourceIcon(l) + esc(l.source) + '</span></div></div></div>';
     }).join('');
     updateBulk();
   }
@@ -204,6 +223,58 @@
   });
   $('search').addEventListener('input', function () { state.query = this.value; renderList(); });
   $('selectToggle').addEventListener('click', function () { state.selectMode = !state.selectMode; if (!state.selectMode) state.selected.clear(); renderList(); });
+
+  // ---------- board: New, Contacted, Closed ----------
+  function renderBoard(shown) {
+    var el = $('board');
+    var cols = ['new', 'contacted', 'closed'];
+    el.innerHTML = cols.map(function (st) {
+      var items = shown.filter(function (l) { return l.status === st; });
+      var cards = items.map(function (l) {
+        var sub = [l.projectType, l.location].filter(Boolean).join(' · ') || l.contact || 'No details yet';
+        var next = STATUS_NEXT[st];
+        return '<div class="kcard' + (needsAttention(l) ? ' attn' : '') + '" draggable="true" tabindex="0" data-id="' + l.id + '">' +
+          '<div class="k-top"><span class="avatar" style="background:' + tint(l.name) + '">' + esc(initials(l.name)) + '</span><span class="k-name">' + esc(l.name || 'Unknown') + '</span><span style="color:var(--ink-3);font-size:12px">' + timeAgo(l.time) + '</span></div>' +
+          '<div class="k-sub">' + esc(sub) + '</div>' +
+          '<div class="k-foot">' + stageChip(l) + callChip(l) + '<button type="button" class="k-move" data-move="' + next + '" data-id="' + l.id + '">' + (st === 'closed' ? 'Reopen' : 'Move to ' + statusLabel(next)) + '</button></div></div>';
+      }).join('');
+      return '<div class="col" data-status="' + st + '"><div class="col-head"><span class="dot"></span>' + statusLabel(st) + '<em>' + items.length + '</em></div>' + (cards || '<div class="col-empty">No leads here</div>') + '</div>';
+    }).join('');
+  }
+  var dragId = null;
+  $('board').addEventListener('dragstart', function (e) { var c = e.target.closest && e.target.closest('.kcard'); if (!c) return; dragId = Number(c.dataset.id); c.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', String(dragId)); } catch (x) { /* some browsers refuse */ } });
+  $('board').addEventListener('dragend', function () { dragId = null; Array.prototype.forEach.call(document.querySelectorAll('.dragging, .col.over'), function (n) { n.classList.remove('dragging', 'over'); }); });
+  $('board').addEventListener('dragover', function (e) { var col = e.target.closest('.col'); if (!col || dragId == null) return; e.preventDefault(); Array.prototype.forEach.call(document.querySelectorAll('.col.over'), function (n) { if (n !== col) n.classList.remove('over'); }); col.classList.add('over'); });
+  $('board').addEventListener('drop', function (e) { var col = e.target.closest('.col'); if (!col || dragId == null) return; e.preventDefault(); var id = dragId; dragId = null; setStatus(id, col.dataset.status); });
+  $('board').addEventListener('click', function (e) {
+    var mv = e.target.closest('[data-move]');
+    if (mv) { e.stopPropagation(); setStatus(Number(mv.dataset.id), mv.dataset.move); return; }
+    var card = e.target.closest('.kcard');
+    if (card) openLead(Number(card.dataset.id));
+  });
+  $('board').addEventListener('keydown', function (e) { var c = e.target.classList && e.target.classList.contains('kcard') && e.target; if (c && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openLead(Number(c.dataset.id)); } });
+
+  // ---------- toolbar: quick filters, stage, sort, view ----------
+  Array.prototype.forEach.call(document.querySelectorAll('[data-quick]'), function (b) {
+    b.addEventListener('click', function () { state.filter = state.filter === b.dataset.quick ? 'all' : b.dataset.quick; renderStats(); renderList(); });
+  });
+  $('stageFilter').addEventListener('change', function () { state.stage = this.value; renderList(); });
+  $('sortBy').addEventListener('change', function () { state.sort = this.value; renderList(); });
+  function applyView() {
+    document.body.classList.toggle('view-board', state.view === 'board');
+    Array.prototype.forEach.call($('viewToggle').children, function (b) { b.classList.toggle('on', b.dataset.view === state.view); });
+    if (state.openId && !usesDrawer()) $('detail').classList.remove('open');
+    document.body.classList.toggle('has-open', $('detail').classList.contains('open') && state.view === 'board');
+  }
+  $('viewToggle').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    state.view = b.dataset.view;
+    try { localStorage.setItem('crmView', state.view); } catch (x) { /* ignore */ }
+    if (state.view === 'board') { state.openId = null; $('detail').classList.remove('open'); $('detailBody').innerHTML = placeholder(); }
+    applyView(); renderList();
+  });
+  $('scrim').addEventListener('click', function () { closeDetail(false); });
+  window.addEventListener('resize', applyView);
 
   // ---------- picking several leads ----------
   function toggleSelect(id) { if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id); renderList(); }
@@ -239,19 +310,19 @@
     renderList();
     renderDetail();
     var pane = $('detail');
-    if (isNarrow()) {
-      if (!pane.classList.contains('open')) history.pushState({ detail: 1 }, '');
+    if (usesDrawer()) {
+      if (isNarrow() && !pane.classList.contains('open')) history.pushState({ detail: 1 }, '');
       pane.classList.add('open');
-      pane.scrollTop = 0;
-    } else {
-      pane.scrollTop = 0;
     }
+    pane.scrollTop = 0;
+    document.body.classList.toggle('has-open', pane.classList.contains('open') && state.view === 'board');
   }
   function closeDetail(silent) {
     var pane = $('detail');
     var wasOpen = pane.classList.contains('open');
     state.openId = null;
     pane.classList.remove('open');
+    document.body.classList.remove('has-open');
     $('detailBody').innerHTML = placeholder();
     renderList();
     if (!silent && wasOpen && history.state && history.state.detail) history.back();
@@ -287,6 +358,8 @@
       '<div class="detail-body">' +
       '<div class="d-head"><span class="avatar lg" style="background:' + tint(l.name) + '">' + esc(initials(l.name)) + '</span><div><h2>' + esc(l.name || 'Unknown') + '</h2>' +
       '<div class="sub">' + contactBits.join('<span>·</span>') + (contactBits.length ? '<span>·</span>' : '') + '<span class="chip">' + sourceIcon(l) + esc(l.source) + '</span><span>' + timeAgo(l.time) + (timeAgo(l.time) === 'now' ? '' : ' ago') + '</span></div></div></div>' +
+      (needsAttention(l) ? '<div class="attn-note">' + ICON.phone + '<span>This enquiry needs a person. The assistant has stepped back, so please reply to them directly.</span></div>' : '') +
+      '<div class="d-badges">' + stageChip(l) + callChip(l) + '</div>' +
       '<div class="d-status"><div class="seg wide" id="statusSeg">' + ['new', 'contacted', 'closed'].map(function (s) { return '<button type="button" data-status="' + s + '" class="' + (l.status === s ? 'on' : '') + '">' + statusLabel(s) + '</button>'; }).join('') + '</div></div>' +
       '<div class="d-actions">' +
       (wa ? '<a class="btn primary sm" target="_blank" rel="noopener" href="' + wa + '">' + ICON.chat + 'WhatsApp</a>' : '') +
@@ -350,7 +423,7 @@
   window.addEventListener('popstate', function () {
     if (skipPop) { skipPop = false; return; }
     if ($('lightbox').classList.contains('show')) { hideLightbox(); return; }
-    if ($('detail').classList.contains('open')) { $('detail').classList.remove('open'); state.openId = null; $('detailBody').innerHTML = placeholder(); renderList(); }
+    if ($('detail').classList.contains('open')) { $('detail').classList.remove('open'); document.body.classList.remove('has-open'); state.openId = null; $('detailBody').innerHTML = placeholder(); renderList(); }
   });
 
   // ---------- clean up ----------
@@ -436,9 +509,15 @@
     if (e.key !== 'Escape') return;
     if ($('lightbox').classList.contains('show')) closeLightbox();
     else if ($('cleanup').classList.contains('show')) closeCleanup();
+    else if (state.openId && usesDrawer()) closeDetail(false);
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === '/' && !/INPUT|SELECT|TEXTAREA/.test((document.activeElement || {}).tagName || '')) { e.preventDefault(); $('search').focus(); }
   });
 
   // ---------- go ----------
+  applyView();
   $('detailBody').innerHTML = placeholder();
   renderStats();
   renderList();
