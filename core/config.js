@@ -102,10 +102,10 @@ module.exports = {
   // Models that can look at a picture. Mistral Small 3.1 works on any Cloudflare account without a licence click.
   const vision = useCloudflare ? [env.LLM_VISION_MODEL || '@cf/mistralai/mistral-small-3.1-24b-instruct'] : [];
   L.providers = [{ name: useCloudflare ? 'cloudflare' : 'primary', baseUrl: L.baseUrl, apiKey: L.apiKey, models: [L.model, L.fallbackModel].filter(Boolean), visionModels: vision, tpm: L.tpm }];
-  // Extra Cloudflare accounts (CF_ACCOUNT_ID_2 / CF_API_TOKEN_2, then _3 ... _5): when one account's
+  // Extra Cloudflare accounts (CF_ACCOUNT_ID_2 / CF_API_TOKEN_2, then _3 ... _8): when one account's
   // daily free allowance is used up, the next one takes over automatically.
   if (useCloudflare) {
-    for (let i = 2; i <= 5; i++) {
+    for (let i = 2; i <= 8; i++) {
       const acct = env[`CF_ACCOUNT_ID_${i}`];
       const tok = env[`CF_API_TOKEN_${i}`];
       if (!acct || !tok) continue;

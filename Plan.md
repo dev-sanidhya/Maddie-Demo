@@ -33,3 +33,8 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 - Mobile: sticky top bar with Add, bottom tab bar, swipeable board columns, tables become cards, full-screen lead drawer, 16px inputs, no horizontal overflow at 390 and 820 wide.
 - Today: status pills and clickable tiles. `LOCAL_ONLY=1` forces local SQLite for previews; launch config `maddie-preview` (port 3101) in Agency/.claude/launch.json.
 - Not done: /form page and simulator personas still interior-design wording; prod admin not viewed signed in (needs the admin password typed by the owner).
+
+## Cloudflare account pool (2026-10-21)
+- The app already fails over: an account that hits its free daily quota (429) is skipped for 30 minutes and the next answers. Pool size cap raised from 5 to 8 (core/config.js).
+- Measured cost: about 650 neurons per enquiry (llama 70B), so one free account (10,000 neurons/day) covers about 15 enquiries a day. Photos use extra neurons.
+- `scripts/cf-accounts.js status | add [--dry-run] [--no-deploy]` checks the live pool and adds an account to .env and Vercel production, then redeploys.
