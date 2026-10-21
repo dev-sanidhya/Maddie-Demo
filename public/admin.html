@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lead Desk</title>
+<style>
+  /* Flat, hairline design language: one accent, no nested boxes, the page scrolls (never an inner pane). */
+  :root {
+    --bg:#ffffff; --side:#fafafb; --surface:#ffffff; --ink:#15151a; --muted:#6b6b78; --faint:#9a9aa6; --line:#ebebef; --line-strong:#dcdce3; --soft:#f6f6f8; --hover:#f4f4f7;
+    --brand:#5b5bd6; --brand-ink:#ffffff; --brand-soft:#eeeefc; --brand-deep:#4a4ac0;
+    --new:#8a8a96; --new-bg:#f1f1f4;
+    --talk:#2f6feb; --talk-bg:#e9f0fe;
+    --active:#12875a; --active-bg:#e5f5ee;
+    --nurture:#c27a06; --nurture-bg:#fdf1db;
+    --nofit:#d92d57; --nofit-bg:#fdeaee;
+    --human:#7d4fd6; --human-bg:#f0eafc;
+    --urgent:#d93f45; --urgent-bg:#fdeded;
+    --shadow:0 1px 2px rgba(20,20,30,.04);
+    --shadow-lg:0 24px 70px rgba(20,20,30,.2);
+    --r:12px; --r-sm:8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#0b0b0e; --side:#0e0e12; --surface:#111116; --ink:#ececf1; --muted:#9494a1; --faint:#6c6c78; --line:#1d1d25; --line-strong:#2a2a35; --soft:#14141a; --hover:#17171e;
+      --brand:#8b8bf0; --brand-ink:#0b0b0e; --brand-soft:#1b1b34; --brand-deep:#a9a9f6;
+      --new:#8a8a96; --new-bg:#1c1c24; --talk:#6ea0ff; --talk-bg:#15213d; --active:#3fc58b; --active-bg:#10291f;
+      --nurture:#e8a93a; --nurture-bg:#2c2210; --nofit:#f0617f; --nofit-bg:#321620; --human:#a98af0; --human-bg:#241b3d;
+      --urgent:#f26b70; --urgent-bg:#321719; --shadow:none; --shadow-lg:0 24px 70px rgba(0,0,0,.65);
+    }
+  }
+  * { box-sizing:border-box; }
+  html { scroll-behavior:auto; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 "Inter","SF Pro Text","Segoe UI",system-ui,-apple-system,Roboto,sans-serif; display:flex; min-height:100vh; -webkit-font-smoothing:antialiased; }
+  button { font:inherit; cursor:pointer; color:inherit; }
+  a { color:var(--brand-deep); }
+  input,select,textarea { font:inherit; color:var(--ink); background:var(--surface); border:1px solid var(--line-strong); border-radius:var(--r-sm); padding:9px 11px; width:100%; outline:none; transition:border-color .12s, box-shadow .12s; }
+  input:focus,select:focus,textarea:focus { border-color:var(--brand); box-shadow:0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
+  textarea { resize:vertical; min-height:72px; }
+  label.f { display:block; font-size:12.5px; font-weight:600; color:var(--muted); margin:16px 0 6px; }
+  .help { font-size:12.5px; color:var(--muted); margin-top:5px; }
+  .mute { color:var(--muted); }
+  h1 { font-size:22px; line-height:1.25; margin:0; letter-spacing:-.02em; font-weight:650; }
+  h2 { font-size:15px; margin:0; letter-spacing:-.005em; font-weight:650; }
+  h3 { font-size:14px; margin:0; font-weight:650; }
+
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; border:1px solid var(--line-strong); background:var(--surface); padding:7px 13px; border-radius:var(--r-sm); font-weight:550; font-size:13.5px; transition:background .12s, border-color .12s; white-space:nowrap; text-decoration:none; color:var(--ink); }
+  .btn:hover { background:var(--hover); }
+  .btn.primary { background:var(--ink); border-color:var(--ink); color:var(--bg); }
+  .btn.primary:hover { opacity:.88; background:var(--ink); }
+  .btn.ghost { border-color:transparent; background:transparent; color:var(--muted); }
+  .btn.ghost:hover { background:var(--hover); color:var(--ink); }
+  .btn.danger { color:var(--nofit); }
+  .btn.sm { padding:4px 10px; font-size:12.5px; }
+  .btn:disabled { opacity:.4; cursor:not-allowed; }
+  svg.i { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+  svg.i.sm { width:14px; height:14px; }
+
+  .card { background:var(--surface); border:1px solid var(--line); border-radius:var(--r); padding:20px; }
+  .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .grow { flex:1; min-width:0; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:0 16px; }
+  .stack > * + * { margin-top:16px; }
+
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:6px; font-size:12px; font-weight:600; line-height:1.5; white-space:nowrap; }
+  .pill.new { background:var(--new-bg); color:var(--new); } .pill.qualifying { background:var(--talk-bg); color:var(--talk); }
+  .pill.active { background:var(--active-bg); color:var(--active); } .pill.nurture { background:var(--nurture-bg); color:var(--nurture); }
+  .pill.disqualified { background:var(--nofit-bg); color:var(--nofit); } .pill.human { background:var(--human-bg); color:var(--human); }
+  .pill.urgent { background:var(--urgent-bg); color:var(--urgent); }
+  .pill.soon { background:var(--nurture-bg); color:var(--nurture); }
+  .pill.plain { background:var(--soft); color:var(--muted); }
+  .dot { width:8px; height:8px; border-radius:50%; background:var(--faint); display:inline-block; flex-shrink:0; }
+  .dot.ok { background:var(--active); } .dot.bad { background:var(--nofit); } .dot.warn { background:var(--nurture); }
+  .avatar { width:32px; height:32px; border-radius:50%; display:grid; place-items:center; font-weight:650; font-size:12px; flex-shrink:0; background:var(--brand-soft); color:var(--brand-deep); }
+  .avatar.lg { width:46px; height:46px; font-size:16px; }
+
+  /* shell: sidebar is fixed, the document scrolls */
+  aside { width:224px; background:var(--side); border-right:1px solid var(--line); padding:18px 12px; display:flex; flex-direction:column; flex-shrink:0; position:sticky; top:0; height:100vh; }
+  .brand { display:flex; align-items:center; gap:10px; padding:2px 8px 20px; }
+  .brand .mark { width:28px; height:28px; border-radius:8px; background:var(--ink); color:var(--bg); display:grid; place-items:center; font-weight:750; font-size:14px; }
+  .brand b { display:block; font-size:14px; letter-spacing:-.01em; line-height:1.2; }
+  .brand small { color:var(--muted); font-size:12px; }
+  nav button { display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:none; border:0; padding:7px 10px; margin-bottom:2px; border-radius:8px; font-weight:550; font-size:13.5px; color:var(--muted); }
+  nav button:hover { background:var(--hover); color:var(--ink); }
+  nav button.on { background:var(--hover); color:var(--ink); }
+  nav button.on svg { color:var(--brand); }
+  nav .badge { margin-left:auto; background:var(--urgent); color:#fff; font-size:11px; font-weight:700; min-width:20px; height:20px; border-radius:10px; display:grid; place-items:center; padding:0 6px; }
+  .side-foot { margin-top:auto; padding:12px 8px 0; font-size:12.5px; color:var(--muted); line-height:2; border-top:1px solid var(--line); }
+  main { flex:1; min-width:0; }
+  .page { max-width:1800px; margin:0 auto; padding:32px 36px 90px; }
+  .page-head { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom:24px; }
+  .page-head p { margin:4px 0 0; color:var(--muted); }
+
+  .tiles { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0; margin-bottom:32px; border:1px solid var(--line); border-radius:var(--r); background:var(--surface); }
+  .tile { padding:18px 22px; text-align:left; border-right:1px solid var(--line); }
+  .tile:last-child { border-right:0; }
+  .tile .n { font-size:28px; font-weight:650; letter-spacing:-.03em; line-height:1.1; }
+  .tile .l { color:var(--muted); font-weight:500; font-size:13px; margin-top:4px; }
+  .tile.alert .n { color:var(--urgent); }
+  .two { display:grid; grid-template-columns:minmax(0,1.55fr) minmax(0,1fr); gap:40px; align-items:start; }
+  .section-title { display:flex; align-items:center; gap:8px; margin:0 0 6px; }
+  .count { color:var(--faint); font-size:12.5px; font-weight:600; }
+  .item { display:flex; align-items:center; gap:14px; padding:12px 8px; border-bottom:1px solid var(--line); cursor:pointer; margin:0 -8px; border-radius:8px; }
+  .item:hover { background:var(--hover); }
+  .item.urgent .t::before, .item.soon .t::before { content:""; display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:9px; vertical-align:middle; }
+  .item.urgent .t::before { background:var(--urgent); } .item.soon .t::before { background:var(--nurture); }
+  .item .t { font-weight:600; }
+  .item .s { color:var(--muted); font-size:13px; }
+  .empty { text-align:center; color:var(--muted); padding:26px 12px; font-size:13.5px; }
+  .empty b { display:block; color:var(--ink); margin-bottom:2px; font-weight:600; }
+  .timeline .ev { display:flex; gap:12px; padding:8px 0; font-size:13.5px; }
+  .timeline .ev .dot { margin-top:7px; }
+  .funnel .bar { display:flex; align-items:center; gap:10px; margin:10px 0; font-size:13.5px; }
+  .funnel .bar span.name { width:110px; color:var(--muted); }
+  .funnel .bar .track { flex:1; height:6px; background:var(--soft); border-radius:99px; overflow:hidden; }
+  .funnel .bar .fill { height:100%; border-radius:99px; }
+  .funnel .bar b { width:26px; text-align:right; font-weight:600; }
+
+  .toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:22px; }
+  .chips { display:flex; gap:4px; flex-wrap:wrap; }
+  .chip { border:1px solid transparent; background:transparent; border-radius:8px; padding:5px 11px; font-weight:550; font-size:13px; color:var(--muted); }
+  .chip:hover { background:var(--hover); color:var(--ink); }
+  .chip.on { background:var(--hover); color:var(--ink); border-color:var(--line-strong); }
+  .search { position:relative; width:260px; }
+  .search input { padding-left:34px; }
+  .search svg { position:absolute; left:11px; top:50%; transform:translateY(-50%); color:var(--faint); }
+
+  /* the board fits the page and wraps, so there is never a sideways scrollbar */
+  .board { display:grid; grid-template-columns:repeat(auto-fit,minmax(236px,1fr)); gap:28px 20px; align-items:start; }
+  .col { min-width:0; }
+  .col-head { display:flex; align-items:center; gap:8px; padding:0 2px 10px; border-bottom:1px solid var(--line); margin-bottom:12px; }
+  .col-head b { font-size:13.5px; font-weight:650; }
+  .col-head .count { margin-left:auto; }
+  .col-head .dot { width:8px; height:8px; }
+  .col-sub { font-size:12.5px; color:var(--muted); margin:-4px 2px 12px; }
+  .lead { position:relative; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:13px 14px; margin-bottom:10px; cursor:pointer; transition:border-color .12s, background .12s; }
+  .lead:hover { border-color:var(--line-strong); background:var(--hover); }
+  .lead .top { display:flex; align-items:center; gap:8px; }
+  .lead .nm { font-weight:650; font-size:14px; line-height:1.3; letter-spacing:-.005em; }
+  .lead .sub { color:var(--muted); font-size:12.5px; margin-top:1px; }
+  .lead .brief { margin-top:8px; font-size:12.5px; line-height:1.5; color:var(--muted); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .lead .metas { display:flex; flex-wrap:wrap; gap:4px 12px; margin-top:10px; font-size:12.5px; color:var(--muted); }
+  .lead .metas .m { display:inline-flex; align-items:center; gap:5px; }
+  .lead .metas .m.good { color:var(--active); font-weight:600; } .lead .metas .m.bad { color:var(--urgent); font-weight:600; } .lead .metas .m.faint { color:var(--faint); }
+  .lead .nextline { margin-top:10px; padding-top:9px; border-top:1px solid var(--line); font-size:12.5px; line-height:1.45; display:flex; gap:7px; align-items:flex-start; color:var(--muted); }
+  .lead .nextline.urgent { color:var(--urgent); font-weight:600; } .lead .nextline.soon { color:var(--nurture); font-weight:600; } .lead .nextline.ok { color:var(--active); font-weight:600; }
+  .lead .nextline svg { margin-top:2px; }
+  .lead .reddot { width:7px; height:7px; border-radius:50%; background:var(--urgent); flex-shrink:0; margin-left:auto; }
+  .empty.slim { padding:16px 6px; border:1px dashed var(--line); border-radius:10px; font-size:12.5px; }
+
+  table.list { width:100%; border-collapse:collapse; }
+  table.list th { text-align:left; font-size:12px; color:var(--muted); font-weight:600; padding:8px 12px; border-bottom:1px solid var(--line); }
+  table.list td { padding:12px 12px; border-bottom:1px solid var(--line); font-size:13.5px; vertical-align:middle; }
+  table.list tr.click { cursor:pointer; } table.list tr.click:hover td { background:var(--hover); }
+
+  .daygroup { margin-bottom:30px; }
+  .daygroup h3 { margin-bottom:6px; display:flex; gap:8px; align-items:center; }
+  .callrow { display:grid; grid-template-columns:100px minmax(0,1fr) auto; gap:16px; align-items:center; padding:13px 8px; border-bottom:1px solid var(--line); margin:0 -8px; border-radius:8px; cursor:pointer; }
+  .callrow:hover { background:var(--hover); }
+  .callrow .time { font-weight:650; font-size:15px; letter-spacing:-.01em; }
+  .callrow .time small { display:block; font-weight:500; color:var(--muted); font-size:12px; }
+  .callrow.over .time { color:var(--urgent); }
+
+  .scrim { position:fixed; inset:0; background:rgba(8,8,12,.4); display:none; z-index:30; }
+  .scrim.open { display:block; }
+  .drawer { position:fixed; top:0; right:0; bottom:0; width:min(640px,100vw); background:var(--bg); border-left:1px solid var(--line-strong); z-index:31; transform:translateX(100%); transition:transform .22s cubic-bezier(.2,.8,.2,1); display:flex; flex-direction:column; box-shadow:var(--shadow-lg); }
+  .drawer.open { transform:none; }
+  .d-head { padding:18px 24px 14px; border-bottom:1px solid var(--line); }
+  .d-body { flex:1; overflow:auto; padding:20px 24px 60px; }
+  .ring { width:46px; height:46px; border-radius:50%; display:grid; place-items:center; font-weight:700; flex-shrink:0; }
+  .ring span { background:var(--bg); width:36px; height:36px; border-radius:50%; display:grid; place-items:center; font-size:13px; }
+  .next { border-radius:10px; padding:12px 14px; margin-bottom:10px; display:flex; gap:11px; align-items:flex-start; font-size:13.5px; }
+  .next.urgent { background:var(--urgent-bg); color:var(--urgent); }
+  .next.soon { background:var(--nurture-bg); }
+  .next.ok { background:var(--active-bg); }
+  .next.idle { background:var(--soft); }
+  .next b { display:block; color:var(--ink); }
+  .next.urgent b { color:var(--urgent); }
+  .glance { background:var(--soft); border-radius:10px; padding:12px 14px; line-height:1.55; font-size:13.5px; }
+  .quick { padding:0; }
+  .quick-head { display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:12px; }
+  .quick .said { margin-top:10px; padding:2px 0 2px 12px; border-left:2px solid var(--line-strong); font-size:13.5px; }
+  .facts { display:grid; grid-template-columns:1fr 1fr; gap:0 16px; }
+  .sec { margin-top:28px; }
+  .sec > h3 { margin-bottom:10px; display:flex; align-items:center; gap:8px; }
+  .sec .card { padding:14px 16px; border-radius:10px; }
+  .chat { background:var(--soft); border-radius:10px; padding:14px; max-height:400px; overflow:auto; display:flex; flex-direction:column; gap:8px; }
+  .msg { max-width:80%; padding:8px 12px; border-radius:14px; white-space:pre-wrap; word-wrap:break-word; font-size:13.5px; line-height:1.45; }
+  .msg small { display:block; font-size:11px; opacity:.65; margin-top:2px; }
+  .msg.in { align-self:flex-start; background:var(--surface); border:1px solid var(--line); border-bottom-left-radius:4px; }
+  .msg.bot { align-self:flex-end; background:var(--ink); color:var(--bg); border-bottom-right-radius:4px; }
+  .msg.you { align-self:flex-end; background:var(--brand); color:var(--brand-ink); border-bottom-right-radius:4px; }
+  .msg.pending { opacity:.6; } .msg.failed { outline:2px solid var(--urgent); }
+  .banner { display:flex; gap:10px; align-items:flex-start; padding:10px 13px; border-radius:10px; font-size:13px; margin-bottom:10px; }
+  .banner.ok { background:var(--active-bg); } .banner.warn { background:var(--nurture-bg); } .banner.bad { background:var(--urgent-bg); }
+  .acts { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  details.more { margin-top:28px; border-top:1px solid var(--line); padding:0; }
+  details.more summary { padding:14px 0; font-weight:600; cursor:pointer; color:var(--muted); }
+  .ev2 { font-size:13px; padding:7px 0; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; gap:10px; }
+
+  .set-grid { display:grid; grid-template-columns:200px minmax(0,1fr); gap:40px; align-items:start; }
+  .subnav { position:sticky; top:24px; }
+  .subnav button { display:block; width:100%; text-align:left; background:none; border:0; padding:7px 11px; border-radius:8px; font-weight:550; font-size:13.5px; color:var(--muted); margin-bottom:2px; }
+  .subnav button.on { background:var(--hover); color:var(--ink); }
+  .subnav button:hover { color:var(--ink); }
+  .bigmoney { font-size:38px; font-weight:650; letter-spacing:-.03em; }
+  input[type=range] { padding:0; border:0; box-shadow:none !important; accent-color:var(--brand); height:26px; }
+  .stackbar { display:flex; height:24px; border-radius:7px; overflow:hidden; background:var(--soft); }
+  .stackbar div { display:grid; place-items:center; color:#fff; font-size:12px; font-weight:700; min-width:0; }
+  .moved { max-height:170px; overflow:auto; font-size:13.5px; margin-top:10px; }
+  .moved div { padding:5px 0; border-bottom:1px solid var(--line); }
+  .chk { display:flex; flex-wrap:wrap; gap:8px 18px; }
+  .chk label { display:flex; align-items:center; gap:8px; font-weight:500; cursor:pointer; }
+  .chk input, .tog input { width:auto; }
+  .tog { display:flex; align-items:center; gap:9px; cursor:pointer; font-weight:500; }
+  code { background:var(--soft); padding:2px 7px; border-radius:6px; font-size:12.5px; word-break:break-all; display:inline-block; }
+  .kv { display:grid; grid-template-columns:140px 1fr; gap:8px 12px; font-size:13.5px; }
+  .kv dt { color:var(--muted); } .kv dd { margin:0; }
+
+  .toast { position:fixed; bottom:24px; left:50%; transform:translate(-50%,24px); background:var(--ink); color:var(--bg); padding:10px 18px; border-radius:10px; z-index:80; opacity:0; transition:all .22s; font-weight:550; font-size:13.5px; max-width:90vw; pointer-events:none; }
+  .toast.show { opacity:1; transform:translate(-50%,0); }
+  .toast.bad { background:var(--urgent); color:#fff; }
+  .login { position:fixed; inset:0; background:var(--bg); z-index:100; display:none; align-items:center; justify-content:center; padding:20px; }
+  .login .card { width:100%; max-width:360px; padding:30px; }
+
+  .tabbar { display:none; }
+  @media (max-width: 960px) {
+    aside { display:none; }
+    .tabbar { display:flex; position:fixed; bottom:0; left:0; right:0; background:var(--bg); border-top:1px solid var(--line); z-index:20; padding:6px 6px calc(6px + env(safe-area-inset-bottom)); }
+    .tabbar button { flex:1; background:none; border:0; display:flex; flex-direction:column; align-items:center; gap:2px; padding:6px 2px; font-size:11px; font-weight:600; color:var(--muted); position:relative; }
+    .tabbar button.on { color:var(--ink); }
+    .tabbar .badge { position:absolute; top:0; right:22%; background:var(--urgent); color:#fff; font-size:10.5px; border-radius:9px; min-width:17px; height:17px; display:grid; place-items:center; }
+    .page { padding:20px 16px 110px; }
+    .tiles { grid-template-columns:repeat(2,1fr); } .tile:nth-child(2) { border-right:0; } .tile:nth-child(-n+2) { border-bottom:1px solid var(--line); }
+    .two, .set-grid, .grid2, .facts { grid-template-columns:1fr; }
+    .subnav { position:static; display:flex; gap:6px; overflow-x:auto; margin-bottom:6px; }
+    .subnav button { width:auto; white-space:nowrap; }
+    .callrow { grid-template-columns:84px minmax(0,1fr); } .callrow > :last-child { grid-column:1 / -1; }
+    .search { width:100%; }
+  }
+</style>
+</head>
+<body>
+<div class="login" id="login">
+  <div class="card">
+    <div class="brand" style="padding:0 0 18px"><div class="mark">L</div><div><b>Lead Desk</b><small>Sign in to continue</small></div></div>
+    <label class="f" for="pw" style="margin-top:0">Password</label>
+    <input id="pw" type="password" autocomplete="current-password">
+    <div id="loginErr" style="color:var(--urgent);min-height:22px;margin-top:8px;font-size:14px"></div>
+    <button class="btn primary" style="width:100%" id="loginBtn">Sign in</button>
+  </div>
+</div>
+
+<aside>
+  <div class="brand"><div class="mark">L</div><div><b>Lead Desk</b><small id="bizName">Your leads, handled</small></div></div>
+  <nav id="nav"></nav>
+  <div class="side-foot" id="foot"></div>
+</aside>
+<main><div class="page" id="page"></div></main>
+<div class="tabbar" id="tabbar"></div>
+<div class="scrim" id="scrim"></div>
+<div class="drawer" id="drawer" aria-hidden="true"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+// ---------- icons ----------
+const P = {
+  today: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
+  leads: '<rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="10" rx="1.5"/><rect x="17" y="4" width="4" height="13" rx="1.5"/>',
+  calls: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
+  chat: '<path d="M21 12a8 8 0 0 1-11.5 7.2L4 21l1.8-5.2A8 8 0 1 1 21 12z"/>',
+  spark: '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  alert: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  send: '<path d="M22 2L11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>',
+  cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
+};
+const ic = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${P[n] || ''}</svg>`;
+
+// ---------- words ----------
+const STAGES = ['new', 'qualifying', 'active', 'nurture', 'disqualified', 'human'];
+const S = {
+  new: { label: 'New', hint: 'Just arrived, no reply yet', color: 'new' },
+  qualifying: { label: 'In conversation', hint: 'The assistant is chatting', color: 'talk' },
+  active: { label: 'Active', hint: 'A good fit, ready for a designer', color: 'active' },
+  nurture: { label: 'Nurture', hint: 'Good fit, but not right now', color: 'nurture' },
+  disqualified: { label: 'Not a fit', hint: 'Below your budget or outside your area', color: 'nofit' },
+  human: { label: 'Needs a person', hint: 'Wants to talk to someone', color: 'human' },
+};
+const state = { view: 'today', boot: null, leads: [], activity: [], includeSim: false, filter: '', channel: 'all', mode: 'board', settingsTab: 'rules', openLead: null, sim: null, chatLeadId: null };
+
+// ---------- api / helpers ----------
+async function api(path, opts = {}) {
+  const res = await fetch(path, { method: opts.method || 'GET', headers: opts.body ? { 'Content-Type': 'application/json' } : {}, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  if (res.status === 401) { showLogin(); throw new Error('Please sign in again'); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Something went wrong (${res.status})`);
+  return data;
+}
+let toastTimer;
+function toast(msg, bad) { const t = $('#toast'); t.textContent = msg; t.className = `toast show${bad ? ' bad' : ''}`; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.className = 'toast'; }, 3200); }
+const act = (fn) => async (...a) => { try { await fn(...a); } catch (e) { toast(e.message, true); } };
+const tz = () => (state.boot && state.boot.settings.business.timezone) || 'Asia/Kolkata';
+const cur = () => (state.boot ? state.boot.settings.qualification.currency : 'INR');
+function money(v) {
+  if (v === null || v === undefined || v === '') return '';
+  const n = Number(v);
+  const t = (x) => String(Math.round(x * 100) / 100);
+  if (cur() === 'INR') { if (n >= 1e7) return `₹${t(n / 1e7)} Cr`; if (n >= 1e5) return `₹${t(n / 1e5)} L`; if (n >= 1e3) return `₹${t(n / 1e3)}k`; return `₹${n}`; }
+  const sym = { USD: '$', EUR: '€', GBP: '£' }[cur()] || cur() + ' ';
+  if (n >= 1e6) return `${sym}${t(n / 1e6)}M`; if (n >= 1e3) return `${sym}${t(n / 1e3)}k`; return `${sym}${n}`;
+}
+function dayKey(ts) { return new Intl.DateTimeFormat('en-CA', { timeZone: tz() }).format(ts); }
+function whenText(ts, withDay = true) {
+  if (!ts) return '';
+  const now = Date.now();
+  const diff = Math.round((new Date(dayKey(ts)) - new Date(dayKey(now))) / 86400000);
+  const rel = diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow' : diff === -1 ? 'Yesterday' : '';
+  const date = new Intl.DateTimeFormat('en-GB', { timeZone: tz(), weekday: 'short', day: 'numeric', month: 'short' }).format(ts);
+  const time = new Intl.DateTimeFormat('en-US', { timeZone: tz(), hour: 'numeric', minute: '2-digit', hour12: true }).format(ts);
+  return withDay ? `${rel ? `${rel}, ` : ''}${date}, ${time}` : time;
+}
+function ago(ts) {
+  if (!ts) return '';
+  const s = Math.max(1, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return 'just now'; if (s < 3600) return `${Math.round(s / 60)} min ago`; if (s < 86400) return `${Math.round(s / 3600)} hr ago`; return `${Math.round(s / 86400)} days ago`;
+}
+function toLocalInput(ts) { return ts ? new Intl.DateTimeFormat('sv-SE', { timeZone: tz(), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(ts).replace(' ', 'T') : ''; }
+const initials = (n) => (String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('') || '?').toUpperCase();
+const projectLine = (l) => [l.scope || l.project_type, l.city].filter(Boolean).join(' in ') || 'Details coming';
+const timelineOf = (l) => l.timeline_text || (l.timeline_months != null ? `${l.timeline_months} months` : '');
+const channelName = (l) => (l.channel === 'instagram' ? 'Instagram' : l.channel === 'telegram' ? 'Telegram' : 'Practice');
+const urgentOf = (l) => (l.attention || []).find((a) => a.level === 'urgent');
+const isUrgent = (l) => l.stage === 'human' || !!urgentOf(l);
+const stageVar = (s) => `var(--${S[s].color})`;
+
+// ---------- shell ----------
+const NAV = [['today', 'Today', 'today'], ['leads', 'Leads', 'leads'], ['calls', 'Calls', 'calls'], ['chat', 'Try it', 'chat'], ['demo', 'Practice', 'spark'], ['settings', 'Settings', 'gear']];
+function urgentCount() { return state.leads.filter(isUrgent).length; }
+function renderNav() {
+  const n = urgentCount();
+  const badge = (id) => (id === 'today' && n ? `<span class="badge">${n}</span>` : '');
+  $('#nav').innerHTML = NAV.map(([id, label, icon]) => `<button data-v="${id}" class="${state.view === id ? 'on' : ''}">${ic(icon)}<span>${label}</span>${badge(id)}</button>`).join('');
+  $('#tabbar').innerHTML = NAV.filter((x) => x[0] !== 'demo').map(([id, label, icon]) => `<button data-v="${id}" class="${state.view === id ? 'on' : ''}">${ic(icon)}<span>${label}</span>${badge(id)}</button>`).join('');
+  document.querySelectorAll('[data-v]').forEach((b) => { b.onclick = () => go(b.dataset.v); });
+}
+function renderFoot() {
+  const s = state.boot && state.boot.status; if (!s) return;
+  const ig = s.instagram && s.instagram.enabled ? (s.instagram.connected ? '<span class="dot ok"></span> Instagram connected' : '<span class="dot bad"></span> Instagram offline') : '<span class="dot warn"></span> Instagram not set up';
+  const tg = s.telegram.enabled ? (s.telegram.connected ? '<span class="dot ok"></span> Telegram connected' : '<span class="dot bad"></span> Telegram offline') : '';
+  const provs = s.llm.providers || []; const allDown = provs.length && provs.every((p) => !p.configured || p.cooling);
+  const ai = !s.llm.enabled ? '<span class="dot bad"></span> Assistant is off' : allDown ? '<span class="dot bad"></span> Assistant is out of AI credit' : provs.some((p) => p.cooling) ? '<span class="dot warn"></span> Assistant on (backup AI)' : '<span class="dot ok"></span> Assistant is on';
+  $('#foot').innerHTML = `${ig}<br>${tg ? tg + '<br>' : ''}${ai}<br><a href="#" id="logout" style="color:var(--muted)">Sign out</a>`;
+  $('#logout').onclick = act(async (e) => { e.preventDefault(); await api('/api/logout', { method: 'POST', body: {} }); location.reload(); });
+  $('#bizName').textContent = state.boot.settings.business.name;
+}
+function go(v) { state.view = v; closeDrawer(); renderNav(); render(); window.scrollTo(0, 0); }
+async function render() { await ({ today: viewToday, leads: viewLeads, calls: viewCalls, chat: viewChat, demo: viewDemo, settings: viewSettings })[state.view](); }
+
+async function loadLeads() {
+  const q = new URLSearchParams(); if (!state.includeSim) q.set('sim', '0');
+  const d = await api(`/api/leads?${q}`); state.leads = d.leads; renderNav();
+}
+async function refreshBoot() { state.boot = await api('/api/bootstrap'); renderFoot(); }
+
+// ---------- pieces ----------
+function leadCard(l) {
+  const metas = [];
+  if (l.callback_at) { const late = l.callback_status === 'scheduled' && l.callback_at < Date.now() - 30 * 60000; metas.push(`<span class="m ${late ? 'bad' : 'good'}">${ic('cal', 'sm')} ${esc(whenText(l.callback_at))}${late ? ' (overdue)' : ''}</span>`); }
+  else if (l.callback_text && l.stage === 'active') metas.push(`<span class="m">${ic('clock', 'sm')} ${esc(l.callback_text)}</span>`);
+  if (l.budget_amount != null) metas.push(`<span class="m">${esc(money(l.budget_amount))}</span>`);
+  if (l.designer) metas.push(`<span class="m">${ic('user', 'sm')} ${esc(String(l.designer).split(' ')[0])}</span>`);
+  metas.push(`<span class="m faint">${esc(channelName(l))}</span>`);
+  return `<div class="lead" data-open="${l.id}">
+    <div class="top"><div class="nm">${esc(l.name || 'Unknown')}</div>${isUrgent(l) ? '<span class="reddot" title="Needs you"></span>' : ''}</div>
+    <div class="sub">${esc(projectLine(l))}</div>
+    ${l.brief ? `<div class="brief">${esc(l.brief)}</div>` : ''}
+    <div class="metas">${metas.join('')}</div>
+    ${l.next_step ? `<div class="nextline ${l.next_step.tone}">${ic(l.next_step.tone === 'urgent' ? 'alert' : l.next_step.tone === 'idle' ? 'clock' : 'check', 'sm')}<span>${esc(l.next_step.text)}</span></div>` : ''}
+  </div>`;
+}
+function bindOpen(root) { root.querySelectorAll('[data-open]').forEach((el) => { el.onclick = (e) => { if (e.target.closest('button[data-done]')) return; openLead(Number(el.dataset.open)); }; }); }
+function attItem(l) {
+  const a = urgentOf(l) || (l.attention || [])[0] || { level: 'urgent', title: 'Wants to talk to a person', detail: '' };
+  return `<div class="item ${a.level}" data-open="${l.id}">
+    <div class="avatar">${esc(initials(l.name))}</div>
+    <div class="grow"><div class="t">${esc(l.name || 'Unknown')} <span class="mute" style="font-weight:500">${esc(projectLine(l))}</span></div><div class="s">${esc(a.title)}${a.detail ? ` &middot; ${esc(a.detail)}` : ''}</div></div>
+    <span class="btn sm primary">Open</span>
+  </div>`;
+}
+
+// ---------- TODAY ----------
+async function viewToday() {
+  await Promise.all([loadLeads(), api('/api/activity').then((d) => { state.activity = d.items; })]);
+  const L = state.leads;
+  const urgent = L.filter(isUrgent);
+  const soon = L.filter((l) => !isUrgent(l) && (l.attention || []).some((a) => a.level === 'soon'));
+  const today = dayKey(Date.now());
+  const callsToday = L.filter((l) => l.callback_at && l.callback_status === 'scheduled' && dayKey(l.callback_at) === today);
+  const newToday = L.filter((l) => dayKey(l.created_at) === today).length;
+  const active = L.filter((l) => l.stage === 'active').length;
+  const upcoming = L.filter((l) => l.callback_at && l.callback_status === 'scheduled' && l.callback_at > Date.now() - 3600000).sort((a, b) => a.callback_at - b.callback_at).slice(0, 6);
+  const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: tz(), hour: 'numeric', hour12: false }).format(Date.now())) % 24;
+  const hello = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const total = Math.max(1, L.length);
+  const funnel = ['new', 'qualifying', 'active', 'nurture', 'disqualified'].map((s) => { const n = L.filter((l) => l.stage === s).length; return `<div class="bar"><span class="name">${S[s].label}</span><div class="track"><div class="fill" style="width:${Math.round((n / total) * 100)}%;background:${stageVar(s)}"></div></div><b>${n}</b></div>`; }).join('');
+  $('#page').innerHTML = `
+  <div class="page-head"><div class="grow"><h1>${hello}</h1><p>${new Intl.DateTimeFormat('en-GB', { timeZone: tz(), weekday: 'long', day: 'numeric', month: 'long' }).format(Date.now())}. Here is what needs your attention.</p></div>
+    <button class="btn primary" id="addLead">${ic('plus')} Add a lead</button></div>
+  <div class="tiles">
+    <div class="tile ${urgent.length ? 'alert' : ''}"><div class="n">${urgent.length}</div><div class="l">Need you now</div></div>
+    <div class="tile"><div class="n">${callsToday.length}</div><div class="l">Calls today</div></div>
+    <div class="tile"><div class="n">${active}</div><div class="l">Active leads</div></div>
+    <div class="tile"><div class="n">${newToday}</div><div class="l">New today</div></div>
+  </div>
+  <div class="two">
+    <div>
+      <div class="section-title"><h2>Needs you now</h2><span class="count">${urgent.length}</span></div>
+      ${urgent.length ? urgent.map(attItem).join('') : '<div class="empty"><b>You are all caught up</b>Nothing is waiting on you right now.</div>'}
+      ${soon.length ? `<div class="section-title" style="margin-top:26px"><h2>Coming up soon</h2><span class="count">${soon.length}</span></div>${soon.map(attItem).join('')}` : ''}
+      <div class="section-title" style="margin-top:26px"><h2>Calls coming up</h2><span class="count">${upcoming.length}</span></div>
+      ${upcoming.length ? upcoming.map((l) => `<div class="item" data-open="${l.id}"><div class="avatar">${esc(initials(l.name))}</div><div class="grow"><div class="t">${esc(l.name)}</div><div class="s">${esc(projectLine(l))}${l.designer ? ` &middot; with ${esc(l.designer)}` : ''}</div></div><span class="pill active">${ic('cal', 'sm')} ${esc(whenText(l.callback_at))}</span></div>`).join('') : '<div class="empty"><b>No calls booked yet</b>When a customer picks a time, it shows up here.</div>'}
+    </div>
+    <div>
+      <div class="card"><h2 style="margin-bottom:6px">Your leads</h2><div class="funnel">${funnel}</div></div>
+      <div class="card" style="margin-top:20px"><h2 style="margin-bottom:8px">Latest activity</h2><div class="timeline">${state.activity.length ? state.activity.slice(0, 9).map((a) => `<div class="ev"><span class="dot ok"></span><div class="grow"><b>${esc(a.name || 'A lead')}</b> ${esc(activityText(a))}<div class="mute" style="font-size:12.5px">${ago(a.created_at)}</div></div></div>`).join('') : '<div class="empty">Nothing yet.</div>'}</div></div>
+    </div>
+  </div>`;
+  $('#addLead').onclick = openAddLead;
+  bindOpen($('#page'));
+}
+function activityText(a) {
+  const d = a.data || {};
+  switch (a.type) {
+    case 'lead_created': return 'sent an enquiry';
+    case 'stage_changed': return `became ${S[d.to] ? S[d.to].label.toLowerCase() : d.to}`;
+    case 'designer_assigned': return `was given to ${d.designer}`;
+    case 'call_rescheduled': return d.at ? `has a call booked for ${whenText(d.at)}` : 'had the call time cleared';
+    case 'followup_done': return 'follow-up marked done';
+    case 'followup_snoozed': return 'reminder postponed';
+    case 'reminder_sent': return 'was sent a call reminder';
+    case 'followup_sent': return 'was sent a gentle nudge';
+    case 'manual_followup_needed': return 'needs you to follow up';
+    case 'facts_updated': return 'shared more details';
+    case 'manual_message': return 'was messaged by you';
+    default: return String(a.type).replace(/_/g, ' ');
+  }
+}
+
+// ---------- LEADS ----------
+async function viewLeads() {
+  await loadLeads();
+  const q = state.filter.toLowerCase();
+  const L = state.leads.filter((l) => (state.channel === 'all' || l.channel === state.channel) && (!q || [l.name, l.city, l.phone, l.tg_username, l.project_type, l.scope].join(' ').toLowerCase().includes(q)));
+  const cols = [
+    { id: 'urgent', label: 'Needs you now', sub: 'Act on these first', items: L.filter(isUrgent), urgent: true },
+    ...['new', 'qualifying', 'active', 'nurture', 'disqualified'].map((s) => ({ id: s, label: S[s].label, sub: S[s].hint, items: L.filter((l) => l.stage === s) })),
+  ];
+  $('#page').innerHTML = `
+  <div class="page-head"><div class="grow"><h1>Leads</h1><p>Every enquiry, sorted by where they are in the journey.</p></div>
+    <a class="btn" href="/api/export.csv">Download list</a><button class="btn primary" id="addLead">${ic('plus')} Add a lead</button></div>
+  <div class="toolbar">
+    <div class="search">${ic('search')}<input id="q" placeholder="Search by name, city or phone" value="${esc(state.filter)}"></div>
+    <div class="chips">${[['all', 'All'], ['instagram', 'Instagram'], ['telegram', 'Telegram']].map(([id, l]) => `<button class="chip ${state.channel === id ? 'on' : ''}" data-ch="${id}">${l}</button>`).join('')}</div>
+    <div class="chips" style="margin-left:auto"><button class="chip ${state.mode === 'board' ? 'on' : ''}" data-mode="board">Board</button><button class="chip ${state.mode === 'list' ? 'on' : ''}" data-mode="list">List</button></div>
+    <label class="tog"><input type="checkbox" id="simT" ${state.includeSim ? 'checked' : ''}> Show practice leads</label>
+  </div>
+  ${state.mode === 'board' ? `<div class="board">${cols.map((c) => `<div class="col"><div class="col-head"><span class="dot" style="background:${c.urgent ? 'var(--urgent)' : stageVar(c.id)}"></span><b>${c.label}</b><span class="count">${c.items.length}</span></div>${c.items.length ? c.items.map(leadCard).join('') : `<div class="empty slim">${c.id === 'urgent' ? 'All clear' : 'Nothing here'}</div>`}</div>`).join('')}</div>`
+    : `<table class="list"><thead><tr><th>Name</th><th>Status</th><th>What they want</th><th>Budget</th><th>Call</th><th>Designer</th><th>Last update</th></tr></thead><tbody>${L.map((l) => `<tr class="click" data-open="${l.id}"><td><b>${esc(l.name || 'Unknown')}</b><div class="mute" style="font-size:13px">${esc(channelName(l))}</div></td><td><span class="pill ${isUrgent(l) ? 'urgent' : l.stage}">${isUrgent(l) ? 'Needs you' : S[l.stage].label}</span></td><td>${esc(projectLine(l))}</td><td>${esc(money(l.budget_amount))}</td><td>${l.callback_at ? esc(whenText(l.callback_at)) : '<span class="mute">None yet</span>'}</td><td>${esc(l.designer || '')}</td><td class="mute">${ago(l.updated_at)}</td></tr>`).join('') || '<tr><td colspan="7"><div class="empty">No leads match.</div></td></tr>'}</tbody></table>`}`;
+  $('#addLead').onclick = openAddLead;
+  let t; $('#q').oninput = (e) => { state.filter = e.target.value; clearTimeout(t); t = setTimeout(() => { const pos = e.target.selectionStart; viewLeads().then(() => { const i = $('#q'); i.focus(); i.setSelectionRange(pos, pos); }); }, 250); };
+  document.querySelectorAll('[data-ch]').forEach((b) => { b.onclick = () => { state.channel = b.dataset.ch; viewLeads(); }; });
+  document.querySelectorAll('[data-mode]').forEach((b) => { b.onclick = () => { state.mode = b.dataset.mode; viewLeads(); }; });
+  $('#simT').onchange = (e) => { state.includeSim = e.target.checked; viewLeads(); };
+  bindOpen($('#page'));
+}
+
+// ---------- CALLS ----------
+async function viewCalls() {
+  await loadLeads();
+  const L = state.leads.filter((l) => l.stage !== 'disqualified');
+  const withTime = L.filter((l) => l.callback_at && l.callback_status === 'scheduled').sort((a, b) => a.callback_at - b.callback_at);
+  const done = L.filter((l) => l.callback_status === 'done').slice(0, 8);
+  const waiting = L.filter((l) => !l.callback_at && l.stage === 'active');
+  const requested = L.filter((l) => !l.callback_at && l.callback_text && l.stage !== 'active');
+  const now = Date.now(); const today = dayKey(now); const tomorrow = dayKey(now + 86400000);
+  const groups = [
+    ['Overdue', withTime.filter((l) => l.callback_at < now - 30 * 60000), true],
+    ['Today', withTime.filter((l) => l.callback_at >= now - 30 * 60000 && dayKey(l.callback_at) === today)],
+    ['Tomorrow', withTime.filter((l) => dayKey(l.callback_at) === tomorrow)],
+    ['Later', withTime.filter((l) => l.callback_at > now && dayKey(l.callback_at) > tomorrow)],
+  ];
+  const row = (l, over) => `<div class="callrow ${over ? 'over' : ''}" data-open="${l.id}">
+    <div class="time">${esc(whenText(l.callback_at, false))}<small>${esc(whenText(l.callback_at).split(',').slice(0, 2).join(','))}</small></div>
+    <div class="grow"><div style="font-weight:700">${esc(l.name || 'Unknown')} <span class="mute" style="font-weight:500">${esc(projectLine(l))}</span></div>
+      <div class="mute" style="font-size:13.5px">${l.designer ? `With ${esc(l.designer)} &middot; ` : ''}${l.phone ? esc(l.phone) : '<span style="color:var(--urgent)">No phone number yet</span>'}${l.contact_pref ? ` &middot; best time: ${esc(l.contact_pref)}` : ''}</div></div>
+    <div class="row">${(l.attention || []).some((a) => a.kind === 'manual') ? '<span class="pill urgent">Message them yourself</span>' : ''}<button class="btn sm" data-done="${l.id}">${ic('check', 'sm')} Done</button><span class="btn sm primary">Open</span></div></div>`;
+  $('#page').innerHTML = `
+  <div class="page-head"><div class="grow"><h1>Calls</h1><p>Every call a customer has asked for. The assistant reminds them before it happens.</p></div></div>
+  ${groups.map(([name, items, over]) => items.length ? `<div class="daygroup"><h3>${name} <span class="count">${items.length}</span></h3>${items.map((l) => row(l, over)).join('')}</div>` : '').join('') || '<div class="empty"><b>No calls booked</b>When a customer agrees to a time, it appears here.</div>'}
+  ${waiting.length || requested.length ? `<div class="daygroup"><h3>Waiting for a time <span class="count">${waiting.length + requested.length}</span></h3>${[...waiting, ...requested].map((l) => `<div class="item" data-open="${l.id}"><div class="avatar">${esc(initials(l.name))}</div><div class="grow"><div class="t">${esc(l.name)} <span class="mute" style="font-weight:500">${esc(projectLine(l))}</span></div><div class="s">${l.callback_text ? `They said: "${esc(l.callback_text)}"` : 'No time agreed yet'}</div></div><span class="btn sm primary">Open</span></div>`).join('')}</div>` : ''}
+  ${done.length ? `<div class="daygroup"><h3>Recently done</h3>${done.map((l) => `<div class="item" data-open="${l.id}"><div class="avatar">${esc(initials(l.name))}</div><div class="grow"><div class="t">${esc(l.name)}</div><div class="s">${esc(whenText(l.callback_at))}</div></div><span class="pill plain">${ic('check', 'sm')} Done</span></div>`).join('')}</div>` : ''}`;
+  document.querySelectorAll('[data-done]').forEach((b) => { b.onclick = act(async (e) => { e.stopPropagation(); await api(`/api/leads/${b.dataset.done}/followup`, { method: 'POST', body: { action: 'done' } }); toast('Marked done'); viewCalls(); }); });
+  bindOpen($('#page'));
+}
+
+// ---------- add lead ----------
+function openAddLead() {
+  const d = $('#drawer');
+  d.innerHTML = `<div class="d-head row"><div class="grow"><h2>Add a lead</h2><div class="mute">Enter someone by hand. You get a link that starts their chat.</div></div><button class="btn ghost" id="dx">${ic('x')}</button></div>
+  <div class="d-body"><label class="f" style="margin-top:0">Name</label><input id="an"><label class="f">Phone</label><input id="ap" placeholder="+91 98765 43210"><label class="f">Email (optional)</label><input id="ae">
+  <div class="grid2"><div><label class="f">What they want</label><input id="at" list="ptl" placeholder="e.g. Modular kitchen"></div><div><label class="f">City</label><input id="ac"></div></div>
+  <datalist id="ptl">${state.boot.settings.qualification.project_types.map((p) => `<option value="${esc(p)}">`).join('')}</datalist>
+  <button class="btn primary" style="margin-top:20px" id="asave">Add lead</button><div id="aout" class="sec"></div></div>`;
+  openDrawerEl(); $('#dx').onclick = closeDrawer;
+  $('#asave').onclick = act(async () => {
+    const r = await api('/api/leads', { method: 'POST', body: { name: $('#an').value, phone: $('#ap').value, email: $('#ae').value, project_type: $('#at').value, city: $('#ac').value, source: 'admin' } });
+    $('#aout').innerHTML = `<div class="banner ok">${ic('check')}<div><b>Lead added.</b> Send them this link so the assistant can start chatting:<br><code>${esc(r.chat_url || 'Connect Instagram or Telegram in Settings first')}</code></div></div>`;
+    toast('Lead added'); render();
+  });
+}
+
+// ---------- DRAWER ----------
+function openDrawerEl() { $('#drawer').classList.add('open'); $('#scrim').classList.add('open'); $('#drawer').setAttribute('aria-hidden', 'false'); }
+function closeDrawer() { $('#drawer').classList.remove('open'); $('#scrim').classList.remove('open'); $('#drawer').setAttribute('aria-hidden', 'true'); state.openLead = null; }
+$('#scrim').onclick = closeDrawer;
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDrawer(); });
+
+async function openLead(id, { soft } = {}) {
+  state.openLead = id;
+  const d = await api(`/api/leads/${id}`);
+  const l = d.lead; const boot = state.boot;
+  const oldChat = $('#drawer .chat'); const wasBottom = !oldChat || oldChat.scrollHeight - oldChat.scrollTop - oldChat.clientHeight < 80;
+  const oldBody = $('#drawer .d-body'); const st = soft && oldBody ? oldBody.scrollTop : 0;
+  const focusId = soft && document.activeElement && document.activeElement.id; const focusVal = focusId ? document.activeElement.value : null;
+  const hue = isUrgent(l) ? 'urgent' : l.stage;
+  const nextHtml = (l.attention || []).map((a) => `<div class="next ${a.level}">${ic(a.level === 'urgent' ? 'alert' : 'clock')}<div class="grow"><b>${esc(a.title)}</b>${esc(a.detail || '')}</div></div>`).join('')
+    || (l.callback_at && l.callback_status === 'scheduled' ? `<div class="next ok">${ic('cal')}<div class="grow"><b>Call booked: ${esc(whenText(l.callback_at))}</b>${l.designer ? `${esc(l.designer)} will call.` : 'Assign a designer below.'} The assistant will remind them beforehand.</div></div>` : '');
+  const field = (k, label, v, ph = '', type = 'text') => `<div><label class="f">${label}</label><input data-f="${k}" type="${type}" value="${esc(v ?? '')}" placeholder="${esc(ph)}"></div>`;
+  const desOpts = '<option value="">Not assigned</option>' + boot.designers.filter((x) => x.active || x.id === l.designer_id).map((x) => `<option value="${x.id}" ${l.designer_id === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
+  const winLeft = l.window_hours_left;
+  const winBanner = l.channel === 'instagram'
+    ? (l.can_ai_message ? `<div class="banner ok">${ic('clock', 'sm')}<div>The assistant can reply on Instagram for about <b>${winLeft < 2 ? Math.round(winLeft * 60) + ' more minutes' : Math.round(winLeft) + ' more hours'}</b>. After that only you can reply (for up to 7 days).</div></div>`
+      : `<div class="banner warn">${ic('alert', 'sm')}<div>It has been over 23 hours since they last wrote, so Instagram will not let the assistant message them. <b>You can still reply yourself</b> for up to 7 days.</div></div>`) : '';
+  $('#drawer').innerHTML = `
+  <div class="d-head">
+    <div class="row" style="flex-wrap:nowrap"><div class="avatar lg">${esc(initials(l.name))}</div>
+      <div class="grow"><h2>${esc(l.name || 'Unknown')}</h2><div class="row" style="gap:8px;margin-top:6px"><span class="pill ${hue}">${isUrgent(l) ? 'Needs you now' : S[l.stage].label}</span><span class="pill plain">${esc(channelName(l))}${l.tg_username ? ` @${esc(l.tg_username)}` : ''}</span>${l.ai_paused ? '<span class="pill human">Assistant paused</span>' : ''}</div></div>
+      <div class="ring" style="background:conic-gradient(var(--brand) ${l.score * 3.6}deg, var(--line) 0)" title="How good a match"><span>${l.score}</span></div>
+      <button class="btn ghost" id="dx" aria-label="Close">${ic('x')}</button></div>
+  </div>
+  <div class="d-body">
+    <div class="quick">
+      <div class="quick-head"><b>Quick summary</b><span class="mute">Everything you need to move this forward</span></div>
+      <div class="next ${l.next_step ? l.next_step.tone : 'idle'}">${ic(l.next_step && l.next_step.tone === 'urgent' ? 'alert' : 'check')}<div class="grow"><b>Next step</b>${esc(l.next_step ? l.next_step.text : '')}</div></div>
+      ${l.next_auto ? `<div class="mute" style="margin:6px 2px 0;font-size:13px">${ic('clock', 'sm')} Automatic: ${esc(l.next_auto.label)} ${l.next_auto.at <= Date.now() ? 'is due now' : esc(whenText(l.next_auto.at))}${l.window_hours_left != null ? ` · Instagram window closes in ${l.window_hours_left < 1 ? 'under an hour' : Math.floor(l.window_hours_left) + 'h'}` : ''}</div>` : ''}
+      <div class="glance"><b>The story so far</b><div style="margin-top:4px">${esc(l.brief || 'Still getting to know this customer.')}</div>${l.stage_reason ? `<div class="mute" style="margin-top:8px;font-size:13.5px">Why ${esc(S[l.stage].label.toLowerCase())}: ${esc(l.stage_reason)}</div>` : ''}</div>
+      ${d.meta && d.meta.memory && d.meta.memory.length ? `<div class="glance"><b>Details they shared</b><ul style="margin:6px 0 0 18px;padding:0">${d.meta.memory.map((m) => `<li>${esc(m)}</li>`).join('')}</ul></div>` : ''}
+      ${l.last_customer ? `<div class="said"><span class="mute">Last thing they said, ${ago(l.last_customer.at)}</span><div>“${esc(l.last_customer.text)}”</div></div>` : ''}
+    </div>
+
+    <div class="sec"><h3>${ic('cal', 'sm')} Call with a designer</h3>
+      <div class="card" style="box-shadow:none">
+        <div class="grid2"><div><label class="f" style="margin-top:0">Date and time</label><input id="cbAt" type="datetime-local" value="${toLocalInput(l.callback_at)}"></div>
+        <div><label class="f" style="margin-top:0">Designer</label><select id="desSel">${desOpts}</select></div></div>
+        ${l.callback_text && !l.callback_at ? `<div class="help">They said: "${esc(l.callback_text)}". Pick the exact time above.</div>` : ''}
+        <div class="acts"><button class="btn sm primary" id="cbSave">Save call time</button>
+          ${l.callback_at ? `<button class="btn sm" id="cbDone">${ic('check', 'sm')} Call done</button><button class="btn sm ghost" id="cbSnooze">Remind me later</button>` : ''}
+          ${(l.attention || []).some((a) => a.kind === 'manual') ? `<button class="btn sm" id="cbManualDone">${ic('check', 'sm')} I followed up</button>` : ''}</div>
+      </div></div>
+
+    <div class="sec"><h3>${ic('user', 'sm')} About them <span class="mute" style="font-weight:500">(change anything and it saves)</span></h3>
+      <div class="facts">${field('scope', 'What they want', l.scope || l.project_type, 'e.g. Modular kitchen and wardrobes')}${field('property', 'Their home', l.property, 'e.g. 3BHK flat, 1450 sq ft')}${field('city', 'City', l.city)}${field('budget_amount', `Budget (${cur()})`, l.budget_amount, 'Full amount, e.g. 800000', 'number')}${field('timeline_text', 'Wants to start', l.timeline_text, 'e.g. in 2 months')}${field('style', 'Style they like', l.style)}${field('phone', 'Phone', l.phone)}${field('email', 'Email', l.email)}${field('contact_pref', 'Best time to reach them', l.contact_pref, 'e.g. evenings after 7')}${field('name', 'Name', l.name)}</div>
+      <label class="f">Notes</label><textarea data-f="notes" placeholder="Anything worth remembering">${esc(l.notes || '')}</textarea>
+      <div class="help">Came from ${esc(l.source || 'unknown')}${l.campaign ? ` (${esc(l.campaign)})` : ''}, ${ago(l.created_at)}.</div></div>
+
+    <div class="sec"><h3>${ic('chat', 'sm')} Conversation</h3>
+      ${winBanner}
+      <div class="chat" id="chatBox">${d.messages.map((m) => `<div class="msg ${m.direction === 'in' ? 'in' : m.role === 'admin' ? 'you' : 'bot'} ${m.status}"><div>${m.media_id ? `<a href="/api/media/${m.media_id}" target="_blank" rel="noopener"><img src="/api/media/${m.media_id}" alt="Photo sent by the customer" style="display:block;max-width:100%;width:340px;max-height:380px;object-fit:contain;border-radius:10px;margin-bottom:6px"></a><span class="mute" style="font-size:12.5px">${esc(String(m.text).replace(/^\[Photo\]\s*/, ''))}</span>` : esc(m.text)}</div><small>${m.direction === 'in' ? esc(l.name || 'Customer') : m.role === 'admin' ? 'You' : 'Assistant'} &middot; ${new Intl.DateTimeFormat('en-GB', { timeZone: tz(), day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(m.created_at)}${m.status === 'pending' ? ' &middot; sending' : ''}${m.status === 'failed' ? ` &middot; not delivered: ${esc(m.error || '')}` : ''}</small></div>`).join('') || '<div class="empty">No messages yet.</div>'}</div>
+      ${l.has_chat ? `<div class="row" style="margin-top:12px;align-items:flex-end;flex-wrap:nowrap"><textarea id="manual" placeholder="Write a message to ${esc((l.name || 'them').split(' ')[0])}..." style="min-height:48px"></textarea><button class="btn primary" id="sendManual">${ic('send', 'sm')} Send</button></div>
+      <label class="tog" style="margin-top:8px"><input type="checkbox" id="pauseOnSend" checked> Pause the assistant while I take over</label>` : '<div class="help">They have not opened the chat yet.</div>'}
+    </div>
+
+    <details class="more"><summary>More options</summary>
+      <div class="grid2"><div><label class="f" style="margin-top:6px">Move to another stage</label><select id="stageSel">${STAGES.map((s) => `<option value="${s}" ${l.stage === s ? 'selected' : ''}>${S[s].label}</option>`).join('')}</select></div><div class="row" style="align-items:flex-end;padding-top:6px"><button class="btn sm" id="setStage">Move</button>${l.stage_locked ? '<button class="btn sm" id="unlock">Let the assistant decide</button>' : ''}</div></div>
+      <div class="acts"><button class="btn sm" id="pauseBtn">${l.ai_paused ? 'Turn the assistant back on' : 'Pause the assistant'}</button><button class="btn sm" id="nudgeBtn" ${l.has_chat && l.can_ai_message ? '' : 'disabled'}>Send a gentle nudge now</button><button class="btn sm" id="resetLead">Start the chat over</button><button class="btn sm danger" id="delLead">Delete lead</button></div>
+      <div class="sec" style="margin-top:18px"><h3 style="font-size:14px">History</h3>${d.events.map((e) => `<div class="ev2"><span>${esc(activityText({ type: e.type, data: e.data }))}</span><span class="mute">${ago(e.created_at)}</span></div>`).join('') || '<div class="help">Nothing yet.</div>'}</div>
+    </details>
+  </div>`;
+  openDrawerEl();
+  const body = $('#drawer .d-body'); if (soft) body.scrollTop = st;
+  const cb = $('#chatBox'); if (cb && (wasBottom || !soft)) cb.scrollTop = cb.scrollHeight;
+  if (focusId) { const f = document.getElementById(focusId); if (f && focusVal !== null) { f.value = focusVal; f.focus(); } }
+  $('#dx').onclick = closeDrawer;
+  $('#drawer').querySelectorAll('[data-f]').forEach((i) => { i.onchange = act(async () => { await api(`/api/leads/${id}`, { method: 'PATCH', body: { [i.dataset.f]: i.value } }); toast('Saved'); }); });
+  $('#desSel').onchange = act(async (e) => { await api(`/api/leads/${id}`, { method: 'PATCH', body: { designer_id: e.target.value || null } }); toast('Designer updated'); });
+  $('#cbSave').onclick = act(async () => { const v = $('#cbAt').value; if (!v) return toast('Pick a date and time first', true); await api(`/api/leads/${id}`, { method: 'PATCH', body: { callback_at: v } }); toast('Call time saved'); });
+  if ($('#cbDone')) $('#cbDone').onclick = act(async () => { const note = prompt('How did the call go? (optional)') || ''; await api(`/api/leads/${id}/followup`, { method: 'POST', body: { action: 'done', note } }); toast('Marked done'); });
+  if ($('#cbSnooze')) $('#cbSnooze').onclick = act(async () => { await api(`/api/leads/${id}/followup`, { method: 'POST', body: { action: 'snooze', hours: 4 } }); toast('We will remind you in 4 hours'); });
+  if ($('#cbManualDone')) $('#cbManualDone').onclick = act(async () => { await api(`/api/leads/${id}/followup`, { method: 'POST', body: { action: 'done' } }); toast('Marked as followed up'); });
+  if ($('#sendManual')) $('#sendManual').onclick = act(async () => { const t = $('#manual').value.trim(); if (!t) return; await api(`/api/leads/${id}/message`, { method: 'POST', body: { text: t, pause: $('#pauseOnSend').checked } }); $('#manual').value = ''; toast('Message sent'); });
+  $('#setStage').onclick = act(async () => { await api(`/api/leads/${id}`, { method: 'PATCH', body: { stage: $('#stageSel').value } }); toast('Moved'); });
+  if ($('#unlock')) $('#unlock').onclick = act(async () => { await api(`/api/leads/${id}`, { method: 'PATCH', body: { unlock: true } }); toast('The assistant will decide again'); });
+  $('#pauseBtn').onclick = act(async () => { await api(`/api/leads/${id}`, { method: 'PATCH', body: { ai_paused: !l.ai_paused } }); toast(l.ai_paused ? 'Assistant is back on' : 'Assistant paused'); });
+  $('#nudgeBtn').onclick = act(async () => { await api(`/api/leads/${id}/nudge`, { method: 'POST', body: { kind: l.stage === 'nurture' ? 'drip' : 'followup' } }); toast('Nudge sent'); });
+  $('#resetLead').onclick = act(async () => { if (!confirm('Erase this conversation and start over?')) return; await api(`/api/leads/${id}/reset`, { method: 'POST', body: {} }); toast('Chat reset'); });
+  $('#delLead').onclick = act(async () => { if (!confirm('Delete this lead for good?')) return; await api(`/api/leads/${id}`, { method: 'DELETE' }); closeDrawer(); toast('Deleted'); render(); });
+}
+
+// ---------- TRY IT ----------
+async function viewChat() {
+  $('#page').innerHTML = `<div class="page-head"><div class="grow"><h1>Try the assistant</h1><p>Chat as a customer to see how it behaves, and watch the lead details fill in on the right.</p></div><button class="btn" id="newChat">${ic('plus')} New practice customer</button></div>
+  <div class="two" style="grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)">
+    <div class="card"><div id="tcStart"><label class="f" style="margin-top:0">Customer name</label><input id="tcName" value="Test Customer"><button class="btn primary" style="margin-top:14px" id="tcGo">Start chatting</button><div class="help">The assistant greets first, just like after someone fills in your form.</div></div>
+      <div id="tcLive" style="display:none"><div class="chat" id="tcBox" style="max-height:440px;min-height:300px"></div><div class="row" style="margin-top:12px;flex-wrap:nowrap"><input id="tcIn" placeholder="Type as the customer..."><button class="btn primary" id="tcSend">${ic('send', 'sm')} Send</button></div></div></div>
+    <div class="card" id="tcState"><h2>What you would see</h2><div class="help">Start a chat to watch the details appear.</div></div></div>`;
+  $('#newChat').onclick = () => { state.chatLeadId = null; viewChat(); };
+  $('#tcGo').onclick = act(async () => { const r = await api('/api/chat/test', { method: 'POST', body: { name: $('#tcName').value, phone: '' } }); state.chatLeadId = r.leadId; refreshChat(); });
+  const send = act(async () => { const t = $('#tcIn').value.trim(); if (!t) return; $('#tcIn').value = ''; await api('/api/chat/test', { method: 'POST', body: { leadId: state.chatLeadId, text: t } }); refreshChat(); });
+  $('#tcSend').onclick = send; $('#tcIn').onkeydown = (e) => { if (e.key === 'Enter') send(); };
+  refreshChat();
+}
+async function refreshChat() {
+  if (state.view !== 'chat' || !$('#tcStart')) return;
+  if (!state.chatLeadId) { $('#tcStart').style.display = 'block'; $('#tcLive').style.display = 'none'; return; }
+  $('#tcStart').style.display = 'none'; $('#tcLive').style.display = 'block';
+  const d = await api(`/api/leads/${state.chatLeadId}`); const l = d.lead;
+  const box = $('#tcBox'); const bottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+  box.innerHTML = d.messages.map((m) => `<div class="msg ${m.direction === 'in' ? 'bot' : 'in'}"><div>${esc(m.text)}</div></div>`).join('');
+  if (bottom) box.scrollTop = box.scrollHeight;
+  const rows = [['Status', S[l.stage].label], ['Match score', l.score], ['What they want', l.scope || l.project_type], ['Their home', l.property], ['City', l.city], ['Budget', money(l.budget_amount)], ['Wants to start', timelineOf(l)], ['Call booked', l.callback_at ? whenText(l.callback_at) : (l.callback_text ? `"${l.callback_text}" (no exact time)` : '')], ['Phone', l.phone], ['Designer', l.designer]];
+  $('#tcState').innerHTML = `<h2>What you would see</h2><div class="row" style="margin:10px 0"><span class="pill ${l.stage}">${S[l.stage].label}</span></div><div class="glance" style="margin-bottom:12px">${esc(l.brief || 'Still getting to know them.')}</div>
+    <dl class="kv">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v == null || v === '' ? '<span class="mute">not yet</span>' : esc(v)}</dd>`).join('')}</dl><div class="acts"><button class="btn sm" id="tcOpen">Open full profile</button></div>`;
+  $('#tcOpen').onclick = () => openLead(l.id);
+}
+
+// ---------- PRACTICE ----------
+async function viewDemo() {
+  state.sim = await api('/api/sim/state');
+  const ps = state.boot.personas;
+  $('#page').innerHTML = `<div class="page-head"><div class="grow"><h1>Practice customers</h1><p>Let the assistant talk to pretend customers: well-off, tight on budget, vague, impatient, even one trying to trick it.</p></div><button class="btn danger" id="simClear">Remove practice leads</button></div>
+  <div class="card"><h2>Who should it talk to?</h2><div class="chk" style="margin-top:12px" id="persona">${ps.map((p) => `<label><input type="checkbox" value="${p.id}" checked> ${esc(p.label)} <span class="mute">(${esc(p.name)})</span></label>`).join('')}</div>
+    <div class="row" style="margin-top:16px"><button class="btn primary" id="simRun">${ic('bolt', 'sm')} Start</button><span class="mute" id="simHint"></span></div></div>
+  <div id="simRes" style="margin-top:20px"></div>`;
+  $('#simClear').onclick = act(async () => { if (!confirm('Remove all practice leads?')) return; await api('/api/sim/clear', { method: 'POST', body: {} }); toast('Removed'); viewDemo(); });
+  $('#simRun').onclick = act(async () => { const ids = [...document.querySelectorAll('#persona input:checked')].map((i) => i.value); if (!ids.length) return toast('Pick at least one', true); state.includeSim = true; state.sim = await api('/api/sim/run', { method: 'POST', body: { personas: ids, concurrency: 3 } }); renderSim(); });
+  renderSim();
+}
+function renderSim() {
+  if (state.view !== 'demo' || !$('#simRes')) return;
+  const s = state.sim; if (!s || !s.runs.length) { $('#simRes').innerHTML = ''; return; }
+  const done = s.runs.filter((r) => r.status === 'done'); const ok = done.filter((r) => r.ok).length;
+  $('#simRun').disabled = s.running; $('#simHint').textContent = s.running ? `Chatting... ${done.length} of ${s.runs.length} finished` : `${ok} of ${s.runs.length} ended up exactly where the rules say they should`;
+  $('#simRes').innerHTML = `<table class="list"><thead><tr><th>Customer</th><th>Progress</th><th>Where they ended up</th><th>Expected</th><th></th></tr></thead><tbody>${s.runs.map((r) => `<tr class="click" data-open="${r.leadId || ''}"><td><b>${esc(r.label)}</b><div class="mute" style="font-size:13px">${esc(r.name)}</div></td><td>${r.status === 'running' ? '<span class="dot warn"></span> chatting' : r.status === 'done' ? `${r.turns} messages` : r.status === 'error' ? `<span style="color:var(--urgent)">${esc(r.error || 'error')}</span>` : 'waiting'}</td><td>${r.stage ? `<span class="pill ${r.stage}">${S[r.stage].label}</span>` : ''}</td><td class="mute">${esc(String(r.expected || '').split(' or ').map((x) => (S[x] ? S[x].label : x)).join(' or '))}</td><td>${r.ok === true ? '<span class="pill active">As expected</span>' : r.ok === false ? '<span class="pill nurture">Different</span>' : ''}</td></tr>`).join('')}</tbody></table>`;
+  $('#simRes').querySelectorAll('tr.click').forEach((el) => { el.onclick = () => el.dataset.open && openLead(Number(el.dataset.open)); });
+}
+
+// ---------- SETTINGS ----------
+const TABS = [['rules', 'Budget and rules'], ['biz', 'Your business'], ['assistant', 'The assistant'], ['designers', 'Designers'], ['reminders', 'Reminders'], ['connect', 'Connections']];
+const SET = () => state.boot.settings;
+const val = (id) => document.getElementById(id).value;
+const chk = (id) => document.getElementById(id).checked;
+const lines = (s) => String(s).split(/[\n,]/).map((x) => x.trim()).filter(Boolean);
+async function saveSettings(patch, msg = 'Saved') { const r = await api('/api/settings', { method: 'PUT', body: patch }); state.boot.settings = r.settings; toast(msg); return r; }
+async function viewSettings() {
+  await refreshBoot();
+  $('#page').innerHTML = `<div class="page-head"><div class="grow"><h1>Settings</h1><p>Changes take effect straight away for new conversations.</p></div></div>
+  <div class="set-grid"><div class="subnav">${TABS.map(([id, l]) => `<button data-t="${id}" class="${state.settingsTab === id ? 'on' : ''}">${l}</button>`).join('')}</div><div id="tabBody"></div></div>`;
+  document.querySelectorAll('[data-t]').forEach((b) => { b.onclick = () => { state.settingsTab = b.dataset.t; viewSettings(); }; });
+  await ({ rules: tabRules, biz: tabBiz, assistant: tabAssistant, designers: tabDesigners, reminders: tabReminders, connect: tabConnect })[state.settingsTab]();
+}
+
+async function tabRules() {
+  const q = SET().qualification; const c = q.currency; const unit = c === 'INR' ? 100000 : 1000; const unitName = c === 'INR' ? 'lakh' : 'thousand';
+  const max = Math.max(60, Math.ceil(q.min_budget / unit * 2 / 5) * 5);
+  $('#tabBody').innerHTML = `<div class="stack">
+  <div class="card"><h2>Minimum budget</h2><div class="help">Anyone who says their budget is below this is politely told it is not a fit, and moves to "Not a fit".</div>
+    <div class="bigmoney" id="minShow" style="margin:12px 0 4px">${esc(money(q.min_budget))}</div>
+    <input type="range" id="minRange" min="0" max="${max}" step="${c === 'INR' ? 0.5 : 1}" value="${q.min_budget / unit}">
+    <div class="row" style="margin-top:6px"><input id="minNum" type="number" min="0" value="${q.min_budget}" style="width:170px"><span class="help">Exact amount in ${c}. The slider moves in ${unitName}s.</span></div>
+    <div class="grid2"><div><label class="f">Close calls (percent)</label><input id="band" type="number" min="0" max="50" value="${q.borderline_pct}"><div class="help">Budgets this close to the minimum go to "Nurture" instead of "Not a fit".</div></div>
+    <div><label class="f">"Active" means starting within (months)</label><input id="within" type="number" min="0" value="${q.active_within_months}"><div class="help">Good-fit customers who start later go to "Nurture".</div></div></div>
+    <div class="grid2"><div><label class="f">Cities you work in</label><textarea id="cities" placeholder="Pune, Mumbai. Leave empty for anywhere.">${esc(q.service_cities.join(', '))}</textarea></div><div><label class="f">Types of project</label><textarea id="ptypes">${esc(q.project_types.join(', '))}</textarea></div></div>
+    <label class="f">The assistant must find out</label><div class="chk" id="req">${[['project_type', 'What they want'], ['city', 'City'], ['budget', 'Budget'], ['timeline', 'When they want to start']].map(([f, l]) => `<label><input type="checkbox" value="${f}" ${q.required.includes(f) ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+    <div class="grid2"><div><label class="f">Currency</label><select id="cur">${['INR', 'USD', 'EUR', 'GBP', 'AED'].map((x) => `<option ${x === c ? 'selected' : ''}>${x}</option>`).join('')}</select></div>
+    <div><label class="f">Tell people about the minimum?</label><select id="reveal"><option value="0" ${SET().agent.reveal_minimum ? '' : 'selected'}>No, keep it private</option><option value="1" ${SET().agent.reveal_minimum ? 'selected' : ''}>Yes, mention it politely</option></select></div></div>
+    <div class="row" style="margin-top:20px"><button class="btn primary" id="saveBar">Save</button><button class="btn" id="applyBar">Save and re-sort my current leads</button></div></div>
+  <div class="card"><h2>What would change?</h2><div class="help">A live preview of how your current leads would be sorted with the numbers above. Nothing changes until you save.</div><div id="whatif" style="margin-top:14px"></div></div></div>`;
+  const patch = () => ({ qualification: { min_budget: Number(val('minNum')) || 0, borderline_pct: Number(val('band')) || 0, active_within_months: Number(val('within')) || 0, required: [...document.querySelectorAll('#req input:checked')].map((i) => i.value), service_cities: lines(val('cities')), project_types: lines(val('ptypes')), currency: val('cur') }, agent: { reveal_minimum: val('reveal') === '1' } });
+  let t; const preview = () => { clearTimeout(t); t = setTimeout(act(async () => drawWhatIf(await api('/api/settings/preview', { method: 'POST', body: { patch: patch(), includeSim: state.includeSim } }))), 250); };
+  $('#minRange').oninput = (e) => { const v = Number(e.target.value) * unit; $('#minNum').value = v; $('#minShow').textContent = money(v); preview(); };
+  $('#minNum').oninput = (e) => { $('#minRange').value = Number(e.target.value) / unit; $('#minShow').textContent = money(Number(e.target.value)); preview(); };
+  ['band', 'within', 'cities', 'cur'].forEach((id) => { $('#' + id).oninput = preview; }); $('#req').onchange = preview;
+  $('#saveBar').onclick = act(async () => { await saveSettings(patch(), 'Saved'); tabRules(); });
+  $('#applyBar').onclick = act(async () => { await saveSettings(patch()); const r = await api('/api/settings/reevaluate', { method: 'POST', body: {} }); toast(`Saved. ${r.moved} lead(s) moved.`); tabRules(); });
+  preview();
+}
+function drawWhatIf(r) {
+  const el = $('#whatif'); if (!el) return;
+  if (!r.total) { el.innerHTML = '<div class="empty"><b>No leads yet</b>Once you have some leads, drag the slider and watch them move.</div>'; return; }
+  const bar = (m) => `<div class="stackbar">${STAGES.filter((s) => m[s]).map((s) => `<div style="flex:${m[s]};background:${stageVar(s)}" title="${S[s].label}: ${m[s]}">${m[s]}</div>`).join('')}</div>`;
+  el.innerHTML = `<div class="help" style="margin-bottom:6px">Right now (${r.total} leads)</div>${bar(r.before)}<div class="help" style="margin:14px 0 6px">With these numbers</div>${bar(r.after)}
+    <div class="row" style="margin-top:10px;gap:14px">${STAGES.map((s) => `<span class="help"><span class="dot" style="background:${stageVar(s)}"></span> ${S[s].label}</span>`).join('')}</div>
+    <div style="margin-top:16px"><b>${r.moved.length}</b> lead${r.moved.length === 1 ? '' : 's'} would move</div>
+    <div class="moved">${r.moved.map((m) => `<div><b>${esc(m.name)}</b> ${m.budget != null ? `(${esc(money(m.budget))})` : ''}: ${S[m.from].label} &rarr; <span class="pill ${m.to}">${S[m.to].label}</span></div>`).join('')}</div>`;
+}
+
+async function tabBiz() {
+  const b = SET().business;
+  $('#tabBody').innerHTML = `<div class="card"><h2>Your business</h2><div class="help">The assistant only talks about what you write here. Change it to suit any business.</div>
+    <div class="grid2"><div><label class="f">Business name</label><input id="bn" value="${esc(b.name)}"></div><div><label class="f">Tagline</label><input id="bt" value="${esc(b.tagline)}"></div></div>
+    <label class="f">What you do</label><textarea id="bd">${esc(b.description)}</textarea>
+    <label class="f">Services (one per line)</label><textarea id="bs">${esc(b.services.join('\n'))}</textarea>
+    <div class="grid2"><div><label class="f">Where you work</label><input id="ba" value="${esc(b.areas)}"></div><div><label class="f">Your time zone</label><input id="btz" value="${esc(b.timezone)}"><div class="help">For example Asia/Kolkata. Used to understand "tomorrow 5 pm".</div></div></div>
+    <label class="f">How should it talk about prices?</label><textarea id="bp">${esc(b.pricing_note)}</textarea>
+    <label class="f">Other things it may mention</label><textarea id="be" style="min-height:96px">${esc(b.extra_knowledge)}</textarea>
+    <button class="btn primary" style="margin-top:18px" id="saveBiz">Save</button></div>`;
+  $('#saveBiz').onclick = act(async () => { await saveSettings({ business: { name: val('bn'), tagline: val('bt'), description: val('bd'), services: lines(val('bs')), areas: val('ba'), timezone: val('btz'), pricing_note: val('bp'), extra_knowledge: val('be') } }); await refreshBoot(); });
+}
+async function tabAssistant() {
+  const a = SET().agent;
+  $('#tabBody').innerHTML = `<div class="card"><h2>The assistant</h2><div class="help">Its name, and how it sounds.</div>
+    <div class="grid2"><div><label class="f">Name</label><input id="an2" value="${esc(a.name)}"></div><div><label class="f">Job title</label><input id="at2" value="${esc(a.title)}"></div></div>
+    <label class="f">How it should sound</label><input id="atone" value="${esc(a.tone)}"><label class="f">Languages</label><input id="alang" value="${esc(a.languages)}">
+    <label class="f">Anything else it should always do</label><textarea id="aex" placeholder="e.g. Always mention our free site visit.">${esc(a.extra_instructions)}</textarea>
+    <button class="btn primary" style="margin-top:18px" id="saveA">Save</button></div>`;
+  $('#saveA').onclick = act(async () => saveSettings({ agent: { name: val('an2'), title: val('at2'), tone: val('atone'), languages: val('alang'), extra_instructions: val('aex') } }));
+}
+async function tabDesigners() {
+  const list = state.boot.designers;
+  $('#tabBody').innerHTML = `<div class="help" style="margin-bottom:14px">When a customer becomes Active, the best-matching designer is chosen automatically by project type, city and budget, and named in the assistant's message.</div>
+  <div class="grid2" style="align-items:start"><div>${list.map((d) => `<div class="item" style="cursor:default;${d.active ? '' : 'opacity:.55'}"><div class="avatar">${esc(initials(d.name))}</div><div class="grow"><div class="t">${esc(d.name)} <span class="mute" style="font-weight:500">${esc(d.title || '')}</span></div><div class="s">${esc(d.specialties || 'Any project')} &middot; ${esc(d.cities || 'Any city')}</div></div><button class="btn sm" data-edit="${d.id}">Edit</button></div>`).join('') || '<div class="empty">No designers yet.</div>'}</div><div class="card" id="dform"></div></div>`;
+  const form = (d = {}) => {
+    $('#dform').innerHTML = `<h2>${d.id ? 'Edit designer' : 'Add a designer'}</h2><div class="grid2"><div><label class="f">Name</label><input id="dn" value="${esc(d.name || '')}"></div><div><label class="f">Title</label><input id="dt" value="${esc(d.title || '')}"></div><div><label class="f">Phone</label><input id="dp" value="${esc(d.phone || '')}"></div><div><label class="f">Telegram chat ID (for alerts)</label><input id="dc" value="${esc(d.telegram_chat_id || '')}"></div></div>
+      <label class="f">Projects they take (empty means any)</label><input id="ds" value="${esc(d.specialties || '')}" placeholder="Full home, Modular kitchen"><div class="grid2"><div><label class="f">Cities (empty means any)</label><input id="dci" value="${esc(d.cities || '')}"></div><div><label class="f">Only projects above (${cur()})</label><input id="dm" type="number" value="${d.min_budget || 0}"></div></div>
+      <label class="f">Short bio</label><textarea id="db2">${esc(d.bio || '')}</textarea><label class="tog" style="margin-top:12px"><input type="checkbox" id="dact" ${d.active === 0 ? '' : 'checked'}> Currently taking new leads</label>
+      <div class="row" style="margin-top:16px"><button class="btn primary" id="dsave">${d.id ? 'Save' : 'Add designer'}</button>${d.id ? '<button class="btn danger" id="ddel">Remove</button><button class="btn ghost" id="dnew">Add another</button>' : ''}</div>`;
+    $('#dsave').onclick = act(async () => { await api(d.id ? `/api/designers/${d.id}` : '/api/designers', { method: d.id ? 'PUT' : 'POST', body: { name: val('dn'), title: val('dt'), phone: val('dp'), telegram_chat_id: val('dc'), specialties: val('ds'), cities: val('dci'), min_budget: Number(val('dm')) || 0, bio: val('db2'), active: chk('dact') } }); await refreshBoot(); toast('Saved'); tabDesigners(); });
+    if (d.id) { $('#ddel').onclick = act(async () => { if (!confirm('Remove this designer?')) return; await api(`/api/designers/${d.id}`, { method: 'DELETE' }); await refreshBoot(); tabDesigners(); }); $('#dnew').onclick = () => form(); }
+  };
+  form(); document.querySelectorAll('[data-edit]').forEach((b) => { b.onclick = () => form(list.find((x) => x.id === Number(b.dataset.edit))); });
+}
+async function tabReminders() {
+  const f = SET().followups;
+  $('#tabBody').innerHTML = `<div class="stack"><div class="card"><h2>Call reminders</h2><div class="help">When a customer books a call, the assistant reminds them beforehand. On Instagram it can only message within 24 hours of their last message; if that has passed, the lead shows up under "Needs you now" so you can follow up yourself.</div>
+    <div class="grid2"><div><label class="f">Remind them this long before (minutes)</label><input id="rb" type="number" min="0" value="${f.reminder_before_min}"></div><div><label class="f">Flag a call as overdue after (minutes)</label><input id="ro" type="number" min="0" value="${f.overdue_after_min}"></div></div></div>
+  <div class="card"><h2>Nudges for quiet customers</h2><div class="help">If someone stops replying mid-chat, the assistant sends a gentle nudge. On Instagram it can only write within 24 hours of their last message, so the last nudge is sent early enough to land inside that window; if the window closes first the lead appears under "Needs you now" for you to follow up by hand. Nothing is sent in quiet hours. Each time the customer replies, the count starts again.</div>
+    <label class="tog" style="margin-top:12px"><input type="checkbox" id="fe" ${f.enabled ? 'checked' : ''}> Send nudges</label>
+    <div class="grid2"><div><label class="f">First nudge after (minutes)</label><input id="f1" type="number" min="0" value="${f.first_after_min}"></div><div><label class="f">Next nudge after the previous one (minutes)</label><input id="f2" type="number" min="0" value="${f.second_after_min}"></div><div><label class="f">Most nudges to send</label><input id="fm" type="number" min="0" value="${f.max}"></div><div><label class="f">Nurture check-in every (days)</label><input id="fd" type="number" min="0" value="${f.nurture_every_days}"></div><div><label class="f">Most check-ins</label><input id="fn" type="number" min="0" value="${f.nurture_max}"></div>
+      <div><label class="f">Send the last nudge this long before the Instagram window closes (minutes)</label><input id="flm" type="number" min="0" value="${f.last_call_margin_min}"></div><div><label class="f">Hand over to you after the last nudge (minutes, non-Instagram)</label><input id="fsa" type="number" min="0" value="${f.stall_after_min}"></div>
+      <div><label class="f">Quiet hours start (0 to 24, business time)</label><input id="fqs" type="number" min="0" max="24" value="${f.quiet_start_hour}"></div><div><label class="f">Quiet hours end (0 to 24)</label><input id="fqe" type="number" min="0" max="24" value="${f.quiet_end_hour}"></div>
+      <div><label class="f">Ask you to reach out if a form lead has not opened the chat after (minutes)</label><input id="fcn" type="number" min="0" value="${f.chat_nudge_after_min}"></div></div>
+    <button class="btn primary" style="margin-top:18px" id="saveF">Save</button></div>
+  <div class="card"><h2>Skip ahead (for demos)</h2><div class="help">Pretend the waiting time has passed. Reminders and nudges go out now, and quiet leads move along.</div><div class="row" style="margin-top:12px"><button class="btn" id="ff">${ic('bolt', 'sm')} Run reminders and nudges now</button><span class="mute" id="ffOut"></span></div></div></div>`;
+  $('#saveF').onclick = act(async () => saveSettings({ followups: { enabled: chk('fe'), first_after_min: val('f1'), second_after_min: val('f2'), max: val('fm'), nurture_every_days: val('fd'), nurture_max: val('fn'), reminder_before_min: val('rb'), overdue_after_min: val('ro'), last_call_margin_min: val('flm'), stall_after_min: val('fsa'), quiet_start_hour: val('fqs'), quiet_end_hour: val('fqe'), chat_nudge_after_min: val('fcn') } }));
+  $('#ff').onclick = act(async () => { const r = await api('/api/scheduler/run', { method: 'POST', body: { force: true, includeSim: state.includeSim } }); $('#ffOut').textContent = `Sent ${r.reminders} reminder(s) and ${r.followups + r.drips} nudge(s). ${r.manual} need you to follow up by hand.`; });
+}
+async function tabConnect() {
+  const h = SET().handoff; const st = state.boot.status; const ig = st.instagram || {}; const c = SET().calendar; const cal = state.boot.calendar || {};
+  $('#tabBody').innerHTML = `<div class="stack">
+  <div class="card"><div class="row"><h2 class="grow">Instagram</h2>${ig.enabled ? (ig.connected ? `<span class="pill active">Connected as @${esc(ig.username)}</span>` : '<span class="pill urgent">Not connected</span>') : '<span class="pill nurture">Not set up</span>'}</div>
+    <div class="help" style="margin-top:6px">Customers who tap your link message your Instagram account, and the assistant replies.</div>
+    ${ig.enabled ? `<label class="f">Your chat link</label><code>${esc(state.boot.instagram_link || '')}</code>` : '<div class="banner warn" style="margin-top:12px">Instagram is not set up yet. Follow the "Instagram setup" steps in the README.</div>'}
+    <label class="f">Quick-reply buttons shown when someone opens the chat (up to 4)</label><textarea id="ibq" style="min-height:76px">${esc(SET().channels.ice_breakers.join('\n'))}</textarea>
+    <label class="f">Where should the enquiry form send people?</label><select id="primCh"><option value="auto" ${SET().channels.primary === 'auto' ? 'selected' : ''}>Instagram if it is set up, otherwise Telegram</option><option value="instagram" ${SET().channels.primary === 'instagram' ? 'selected' : ''}>Always Instagram</option><option value="telegram" ${SET().channels.primary === 'telegram' ? 'selected' : ''}>Always Telegram</option></select>
+    <div class="help">The form currently sends people to <b>${esc(ig.primary || 'nowhere yet')}</b>.</div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" id="savePrim">Save</button><button class="btn" id="igIce" ${ig.enabled ? '' : 'disabled'}>Publish the buttons</button></div>
+    <details class="more" style="margin-top:18px"><summary>Technical details</summary><dl class="kv" style="padding-bottom:12px"><dt>Webhook address</dt><dd><code>${esc(state.boot.webhook_url)}</code></dd><dt>Last message received</dt><dd>${ig.lastWebhookAt ? ago(ig.lastWebhookAt) : 'None yet'}</dd><dt>Access token valid until</dt><dd>${ig.token && ig.token.expiresAt ? new Date(ig.token.expiresAt).toLocaleDateString() : 'Unknown'}</dd></dl><div class="row" style="padding-bottom:12px"><button class="btn sm" id="igSub" ${ig.enabled ? '' : 'disabled'}>Re-subscribe to messages</button><button class="btn sm" id="igTok" ${ig.enabled ? '' : 'disabled'}>Refresh access token</button></div></details></div>
+  <div class="card"><div class="row"><h2 class="grow">Telegram</h2>${st.telegram.enabled ? (st.telegram.connected ? `<span class="pill active">Connected as @${esc(st.telegram.username)}</span>` : '<span class="pill urgent">Offline</span>') : '<span class="pill plain">Not set up</span>'}</div><div class="help">Optional second channel.</div></div>
+  <div class="card"><div class="row"><h2 class="grow">Calendar</h2>${cal.configured ? (c.enabled && c.calendar_id ? '<span class="pill active">Booking calls</span>' : '<span class="pill">Off</span>') : '<span class="pill urgent">Not set up</span>'}</div>
+    <div class="help" style="margin-top:6px">The assistant books the intro call on your Google Calendar. It only offers times you are free, inside your working hours, and every booked call appears as an event with the lead's details. It is free: you share your calendar once with an e-mail address that belongs to this app.</div>
+    ${cal.configured ? `<div class="banner" style="margin-top:12px"><b>Step 1.</b> In Google Calendar, open your calendar's settings, choose "Share with specific people", add <code>${esc(cal.email)}</code> and give it <b>Make changes to events</b>.</div>` : '<div class="banner warn" style="margin-top:12px">The app has no Google service account yet. Add GOOGLE_SERVICE_ACCOUNT_JSON in the hosting settings, then come back here.</div>'}
+    <label class="tog" style="margin-top:12px"><input type="checkbox" id="calOn" ${c.enabled ? 'checked' : ''}> Let the assistant book calls on this calendar</label>
+    <label class="f">Calendar ID (usually the owner's Gmail address)</label><input id="calId" value="${esc(c.calendar_id)}" placeholder="owner@gmail.com">
+    <div class="grid2"><div><label class="f">Working days</label><input id="calDays" value="${esc(c.work_days.join(', '))}"></div><div><label class="f">Call length (minutes)</label><input id="calLen" type="number" min="15" value="${c.slot_minutes}"></div><div><label class="f">Calls start from (hour, 0 to 23)</label><input id="calFrom" type="number" min="0" max="23" value="${c.work_start_hour}"></div><div><label class="f">Calls end by (hour, 1 to 24)</label><input id="calTo" type="number" min="1" max="24" value="${c.work_end_hour}"></div><div><label class="f">Gap around other meetings (minutes)</label><input id="calBuf" type="number" min="0" value="${c.buffer_min}"></div><div><label class="f">Minimum notice (minutes)</label><input id="calNotice" type="number" min="0" value="${c.min_notice_min}"></div></div>
+    <div class="row" style="margin-top:14px"><button class="btn primary" id="saveCal">Save</button><button class="btn" id="testCal" ${cal.configured ? '' : 'disabled'}>Test the connection</button><span class="mute" id="calOut"></span></div></div>
+  <div class="card"><h2>Alerts to your team</h2><div class="help">Get a Telegram message when a lead turns Active, a call is booked, or someone needs you. To pick the chat, send <code>/setup yourpassword</code> to the bot from it.</div>
+    <label class="f">Alert chat ID</label><input id="nc" value="${esc(h.notify_chat_id)}"><div class="row" style="margin-top:12px"><button class="btn primary" id="saveNc">Save</button><button class="btn" id="testAlert">Send a test alert</button></div></div>
+  <div class="card"><h2>Send leads to another tool</h2><div class="help">Every new lead and update is posted to this address as it happens, so it can flow into a CRM, Google Sheets, Zapier or Make. If the other tool is down, nothing is lost: it keeps retrying.</div>
+    <label class="f">Address</label><input id="wu" value="${esc(h.webhook_url)}" placeholder="https://..."><label class="f">Secret (optional, for security)</label><input id="ws" value="${esc(h.webhook_secret)}">
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="saveW">Save</button><button class="btn" id="testW">Send a test</button></div><div class="help">Waiting to send: ${st.outbox.pending_webhooks}. Gave up: ${st.outbox.dead_webhooks}.</div></div>
+  <div class="card"><h2>Your data</h2><div class="row" style="margin-top:10px"><a class="btn" href="/api/export.csv">Download all leads</a><button class="btn danger" id="wipe">Delete everything</button></div></div></div>`;
+  const starters = () => lines(val('ibq')).slice(0, 4);
+  $('#savePrim').onclick = act(async () => { await saveSettings({ channels: { primary: val('primCh'), ice_breakers: starters() } }); await refreshBoot(); tabConnect(); });
+  $('#igIce').onclick = act(async () => { await api('/api/instagram/ice-breakers', { method: 'POST', body: { questions: starters() } }); toast('Buttons published'); });
+  $('#igSub').onclick = act(async () => { await api('/api/instagram/subscribe', { method: 'POST', body: {} }); toast('Subscribed'); });
+  $('#igTok').onclick = act(async () => { await api('/api/instagram/refresh-token', { method: 'POST', body: {} }); toast('Token refreshed'); tabConnect(); });
+  const calPatch = () => ({ calendar: { enabled: chk('calOn'), calendar_id: val('calId'), work_days: val('calDays'), slot_minutes: val('calLen'), work_start_hour: val('calFrom'), work_end_hour: val('calTo'), buffer_min: val('calBuf'), min_notice_min: val('calNotice') } });
+  $('#saveCal').onclick = act(async () => { await saveSettings(calPatch()); await refreshBoot(); tabConnect(); });
+  $('#testCal').onclick = act(async () => { await saveSettings(calPatch(), 'Saved'); const r = await api('/api/calendar/test', { method: 'POST', body: {} }); $('#calOut').textContent = r.message; toast(r.ok ? 'Calendar connected' : 'Could not connect', !r.ok); });
+  $('#saveNc').onclick = act(async () => saveSettings({ handoff: { notify_chat_id: val('nc') } }));
+  $('#testAlert').onclick = act(async () => { await saveSettings({ handoff: { notify_chat_id: val('nc') } }, 'Saved'); await api('/api/test-alert', { method: 'POST', body: {} }); toast('Test alert sent'); });
+  $('#saveW').onclick = act(async () => saveSettings({ handoff: { webhook_url: val('wu'), webhook_secret: val('ws') } }));
+  $('#testW').onclick = act(async () => { await saveSettings({ handoff: { webhook_url: val('wu'), webhook_secret: val('ws') } }, 'Saved'); const r = await api('/api/test-webhook', { method: 'POST', body: {} }); toast(r.delivered ? 'Delivered' : 'Could not deliver yet, it will keep retrying', !r.delivered); });
+  $('#wipe').onclick = act(async () => { const t = prompt('This deletes ALL leads and conversations. Type WIPE to confirm.'); if (t !== 'WIPE') return; await api('/api/demo/wipe', { method: 'POST', body: { confirm: 'WIPE' } }); toast('Everything deleted'); });
+}
+
+// ---------- live updates ----------
+let refreshTimer; let pulseV = null; let pulseTimer = null;
+async function refreshLive() {
+  try {
+    const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement && document.activeElement.tagName);
+    if (state.view === 'today') viewToday();
+    else if (state.view === 'leads' && !typing) viewLeads();
+    else if (state.view === 'calls') viewCalls();
+    else if (state.view === 'chat') refreshChat();
+    else await loadLeads();
+    if (state.openLead && !typing) openLead(state.openLead, { soft: true });
+  } catch { /* retried on the next change */ }
+}
+// The server cannot hold a connection open, so ask for a tiny fingerprint every few seconds and reload only when it changes.
+function connectStream() {
+  clearInterval(pulseTimer);
+  const tick = async () => {
+    if (document.hidden) return;
+    try {
+      const r = await fetch('/api/pulse');
+      if (!r.ok) return;
+      const p = await r.json();
+      if (pulseV !== null && p.v !== pulseV) { clearTimeout(refreshTimer); refreshTimer = setTimeout(async () => { if (p.sim) { try { state.sim = await api('/api/sim/state'); renderSim(); } catch { /* optional */ } } refreshLive(); }, 150); }
+      pulseV = p.v;
+    } catch { /* offline: the next tick tries again */ }
+  };
+  tick(); pulseTimer = setInterval(tick, 3500);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+}
+
+// ---------- login / boot ----------
+function showLogin() { $('#login').style.display = 'flex'; $('#pw').focus(); }
+$('#loginBtn').onclick = async () => {
+  try {
+    const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('#pw').value }) });
+    if (!r.ok) throw new Error((await r.json()).error || 'Wrong password');
+    $('#login').style.display = 'none'; start();
+  } catch (e) { $('#loginErr').textContent = e.message; }
+};
+$('#pw').onkeydown = (e) => { if (e.key === 'Enter') $('#loginBtn').click(); };
+async function start() {
+  await refreshBoot(); await loadLeads(); renderNav(); connectStream();
+  const m = location.hash.match(/lead=(\d+)/);
+  await render(); if (m) openLead(Number(m[1]));
+}
+(async () => { const me = await fetch('/api/me').then((r) => r.json()); if (me.admin) start(); else showLogin(); })();
+</script>
+</body>
+</html>
