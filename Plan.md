@@ -27,3 +27,9 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 - Fixed: "designer" wording in fallback replies, unapproved "within one working day" promise, Interio Arty branding in /crm (title, logo, banner, WhatsApp text, CSV name).
 - Prod checks: /crm studio login opens only the inbox (admin API 401), CRM status columns New/Contacted/Closed move, AI stage badge follows admin stage moves. Test leads deleted.
 - Known gaps: "flag for review" (very low budget, free work) is not a separate flag, it shows as Active; admin console and /form still have interior-design wording; photo path tested with real vision locally, not via a live Instagram DM.
+
+## Admin redesign (2026-10-21)
+- /admin restyled (soft canvas, white cards, rose accent, light and dark), brand name and initials come from settings, wording is Glad U Came specific (Owner, Team, Intro call, Test leads, Brand and details).
+- Mobile: sticky top bar with Add, bottom tab bar, swipeable board columns, tables become cards, full-screen lead drawer, 16px inputs, no horizontal overflow at 390 and 820 wide.
+- Today: status pills and clickable tiles. `LOCAL_ONLY=1` forces local SQLite for previews; launch config `maddie-preview` (port 3101) in Agency/.claude/launch.json.
+- Not done: /form page and simulator personas still interior-design wording; prod admin not viewed signed in (needs the admin password typed by the owner).
