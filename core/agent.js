@@ -34,11 +34,11 @@ const ALT_ASK = {
   ],
   city: [
     'And which city is the property in? Even just the city name is perfect.',
-    'Just so I can match you with the right designer, could you type the city the project is in?',
+    'Just so I can match you with the right team member, could you type the city the project is in?',
   ],
   budget: [
     'Roughly what range are you thinking of for this project? A ballpark is completely fine.',
-    'If you are not sure yet, an estimate like "5 to 10 lakh" helps us match you with the right designer.',
+    'If you are not sure yet, an estimate like "5 to 10 lakh" helps us match you with the right team member.',
   ],
   timeline: [
     'And when are you hoping to get started, roughly? For example "in 2 months" or "as soon as possible".',
@@ -94,15 +94,15 @@ function directiveBody(d, ctx) {
       if (settings.agent.polish) {
         return `This is your FIRST message to ${lead.name || 'them'}. Write it like a person at a design studio: greet them by first name, one short welcome line${lead.city || lead.project_type ? ` that shows you noticed what they said (${[lead.project_type, lead.city].filter(Boolean).join(' in ')})` : ''}, say who you are in a few words, then ask naturally: ${FIELD_ASK_HINT[d.field] || 'how you can help'}. At most two or three short sentences. Do not say you have "a couple of quick questions" and do not mention matching them with anyone.`;
       }
-      return `This is your FIRST message to ${lead.name || 'them'}. Greet them by first name, thank them for their enquiry${lead.city || lead.project_type ? ` (they mentioned ${[lead.project_type, lead.city].filter(Boolean).join(' in ')})` : ''}, introduce yourself in one short clause, and say you have a couple of quick questions to match them with the right designer. Then ask, naturally: ${FIELD_ASK_HINT[d.field] || 'how you can help'}. Keep the whole message to 2 or 3 sentences and do not list examples.`;
+      return `This is your FIRST message to ${lead.name || 'them'}. Greet them by first name, thank them for their enquiry${lead.city || lead.project_type ? ` (they mentioned ${[lead.project_type, lead.city].filter(Boolean).join(' in ')})` : ''}, introduce yourself in one short clause, and say you have a couple of quick questions to match them with the right team member. Then ask, naturally: ${FIELD_ASK_HINT[d.field] || 'how you can help'}. Keep the whole message to 2 or 3 sentences and do not list examples.`;
     case 'ASK': {
-      const soft = d.hesitated ? ' They hesitated or dodged this last time, so reassure them lightly that a rough ballpark is enough and it only helps match the right designer, without pressuring.' : '';
+      const soft = d.hesitated ? ' They hesitated or dodged this last time, so reassure them lightly that a rough ballpark is enough and it only helps match the right team member, without pressuring.' : '';
       return `First respond to what they just said like a person would: a few fresh words, never a recap of their message, plus one genuinely useful or encouraging thought if you have one. If they asked a question, answer it properly using ONLY the business facts above. Then ask ONE open, curious question to find out ${FIELD_ASK_HINT[d.field]}.${soft}`;
     }
     case 'ANSWER':
-      return 'They asked a question. Answer it briefly and helpfully using ONLY the business facts above. If you do not know, say a designer can confirm on a free consultation. Do not ask any question.';
+      return 'They asked a question. Answer it briefly and helpfully using ONLY the business facts above. If you do not know, say a team member can confirm on a free consultation. Do not ask any question.';
     case 'CLOSE_ACTIVE':
-      return `They are a strong fit. Thank them warmly and show you understood their project in ONE natural sentence, without repeating their words back mechanically (for context: ${[lead.project_type, lead.city, lead.budget_amount != null ? `budget around ${money(lead.budget_amount)}` : '', lead.timeline_text || (lead.timeline_months != null ? `${lead.timeline_months} months` : '')].filter(Boolean).join(', ')}). ${designer ? `Tell them ${designer.name}${designer.title ? `, ${designer.title}` : ''}, from the team will reach out within one working day.` : 'Tell them a senior designer from the team will reach out within one working day.'} ${lead.callback_at ? `They already booked a call for ${formatWhen(lead.callback_at, settings.business.timezone)}, so confirm that time instead of asking for one.` : d.slots && d.slots.length ? slotAsk(d.slots) : (lead.phone || lead.email) ? 'Then ask what day and time suit them for a quick call. Ask only that one question.' : 'Then ask, in ONE question, what day and time suit them for a quick call and the best phone number to reach them on.'}`;
+      return `They are a strong fit. Thank them warmly and show you understood their project in ONE natural sentence, without repeating their words back mechanically (for context: ${[lead.project_type, lead.city, lead.budget_amount != null ? `budget around ${money(lead.budget_amount)}` : '', lead.timeline_text || (lead.timeline_months != null ? `${lead.timeline_months} months` : '')].filter(Boolean).join(', ')}). ${designer ? `Tell them ${designer.name}${designer.title ? `, ${designer.title}` : ''}, from the team will review their brief and reach out. Do not promise a specific time.` : 'Tell them a senior designer from the team will review their brief and reach out. Do not promise a specific time.'} ${lead.callback_at ? `They already booked a call for ${formatWhen(lead.callback_at, settings.business.timezone)}, so confirm that time instead of asking for one.` : d.slots && d.slots.length ? slotAsk(d.slots) : (lead.phone || lead.email) ? 'Then ask what day and time suit them for a quick call. Ask only that one question.' : 'Then ask, in ONE question, what day and time suit them for a quick call and the best phone number to reach them on.'}`;
     case 'OFFER_SLOTS':
       return d.slots && d.slots.length
         ? `The time they asked for (${d.requested}) is not available. Say so kindly in one short clause, without apologising at length, then ${slotAsk(d.slots)}`
@@ -287,16 +287,16 @@ function fallbackReply(directive, ctx) {
   const money = (n) => formatMoney(n, settings.qualification.currency);
   switch (directive.type) {
     case 'GREET':
-      return `Hi ${first}, thanks for your enquiry with ${biz}! I'm ${settings.agent.name}, and I have a couple of quick questions to match you with the right designer. ${FALLBACK_ASK[directive.field] || 'How can I help?'}`;
+      return `Hi ${first}, thanks for your enquiry with ${biz}! I'm ${settings.agent.name}, and I have a couple of quick questions to match you with the right team member. ${FALLBACK_ASK[directive.field] || 'How can I help?'}`;
     case 'ASK':
       if (directive.attempt > 0 && ALT_ASK[directive.field]) return ALT_ASK[directive.field][(directive.attempt - 1) % ALT_ASK[directive.field].length];
       return directive.hesitated && directive.field === 'budget'
-        ? "No problem at all, even a rough ballpark helps us match you with the right designer. Roughly what range are you thinking of?"
+        ? "No problem at all, even a rough ballpark helps us match you with the right team member. Roughly what range are you thinking of?"
         : `Thanks! ${FALLBACK_ASK[directive.field]}`;
     case 'ANSWER':
-      return 'Good question. A designer can give you exact details on a free consultation, and I have noted it for them.';
+      return 'Good question. a team member can give you exact details on a free consultation, and I have noted it for them.';
     case 'CLOSE_ACTIVE':
-      return `Thank you ${first}, that is everything I need. ${designer ? `${designer.name} from our team` : 'A senior designer from our team'} will reach out within one working day. ${directive.slots && directive.slots.length ? `I can do ${directive.slots.join(', or ')} for a quick call. Which works best${lead.phone || lead.email ? '' : ', and what is the best number to reach you on'}?` : lead.phone || lead.email ? 'What day and time suit you for a quick call?' : 'What day and time suit you for a quick call, and what is the best number to reach you on?'}`;
+      return `Thank you ${first}, that is everything I need. ${designer ? `${designer.name} from our team` : 'A senior member of our team'} will review your brief and reach out. ${directive.slots && directive.slots.length ? `I can do ${directive.slots.join(', or ')} for a quick call. Which works best${lead.phone || lead.email ? '' : ', and what is the best number to reach you on'}?` : lead.phone || lead.email ? 'What day and time suit you for a quick call?' : 'What day and time suit you for a quick call, and what is the best number to reach you on?'}`;
     case 'CLOSE_NURTURE':
       return `Thanks ${first}, there is no rush at all. We will stay in touch, and you can message me here any time you are ready to take things forward.`;
     case 'CLOSE_DISQUALIFIED':
@@ -306,11 +306,11 @@ function fallbackReply(directive, ctx) {
     case 'HANDOFF':
       return `Of course, ${first}. I will pass this to a team member who will reach out shortly. Thank you for your patience.`;
     case 'CONFIRM_CALLBACK':
-      return `Perfect, ${designer ? designer.name : 'our designer'} will call you ${directive.when}.${lead.phone || lead.email ? '' : ' What is the best number to reach you on?'}`;
+      return `Perfect, ${designer ? designer.name : 'our team member'} will call you ${directive.when}.${lead.phone || lead.email ? '' : ' What is the best number to reach you on?'}`;
     case 'OFFER_SLOTS':
       return directive.slots && directive.slots.length ? `Sorry, ${directive.requested} is not free. I can do ${directive.slots.join(', or ')}. Which works best for you?` : `Sorry, ${directive.requested} is not free. The team will message you with a time shortly.`;
     case 'REMINDER':
-      return `Hi ${first}, a quick reminder that ${designer ? designer.name : 'our designer'} will call you ${directive.when ? `at ${directive.when}` : 'soon'}. Reply here if the time needs to change.`;
+      return `Hi ${first}, a quick reminder that ${designer ? designer.name : 'our team member'} will call you ${directive.when ? `at ${directive.when}` : 'soon'}. Reply here if the time needs to change.`;
     case 'POST':
       return `Noted, I have passed that on to the team.${directive.askCallback ? (directive.slots && directive.slots.length ? ` I can do ${directive.slots.join(', or ')} for a call. Which works best?` : ' What day and time suit you for the designer call?') : directive.askPhone ? ' What is the best number to reach you on?' : ''}`;
     case 'FOLLOWUP':
