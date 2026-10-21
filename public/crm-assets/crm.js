@@ -1,6 +1,6 @@
 (function () {
   'use strict';
-  // Interio Arty Lead Inbox. Every enquiry (Instagram, website chatbot, enquiry form) in one place, kept in the
+  // Glad U Came Lead Inbox. Every enquiry (Instagram, website chatbot, enquiry form) in one place, kept in the
   // studio's own database. Works the same on a desktop (list and conversation side by side) and a phone
   // (list, then the conversation slides in).
 
@@ -136,8 +136,8 @@
       if (!ok) {
         $('igReconnect').hidden = !s.can_connect;
         $('igBannerText').textContent = s.can_connect
-          ? 'Arty cannot answer Instagram messages until you reconnect. It takes about 20 seconds.'
-          : 'Arty cannot answer Instagram messages right now. Please contact your agency to reconnect.';
+          ? 'The assistant cannot answer Instagram messages until you reconnect. It takes about 20 seconds.'
+          : 'The assistant cannot answer Instagram messages right now. Please contact your agency to reconnect.';
       }
     }).catch(function () {});
   }
@@ -268,7 +268,7 @@
     if (l.email) contactBits.push('<a href="mailto:' + esc(l.email) + '">' + esc(l.email) + '</a>');
     if (!contactBits.length && l.contact) contactBits.push(esc(l.contact));
     var first = (l.name || '').split(/\s+/)[0] || 'there';
-    var wa = l.phone ? 'https://wa.me/' + digits(l.phone) + '?text=' + encodeURIComponent('Hi ' + first + ', this is the Interio Arty team. Thank you for getting in touch about your project.') : '';
+    var wa = l.phone ? 'https://wa.me/' + digits(l.phone) + '?text=' + encodeURIComponent('Hi ' + first + ', this is the Glad U Came team. Thank you for getting in touch about your enquiry.') : '';
 
     // conversation, grouped by day, photos as pictures
     var lastDay = '';
@@ -294,7 +294,7 @@
       (l.email ? '<a class="btn sm" href="mailto:' + esc(l.email) + '">' + ICON.mail + 'Email</a>' : '') + '</div>' +
       '<div class="section"><h3>Summary</h3><p class="summary">' + esc(l.summary || 'No summary yet.') + '</p></div>' +
       '<div class="section"><h3>Details</h3><dl class="facts">' +
-      fact('Project', l.projectType) + fact('Property', l.bhk) + fact('Location', l.location) + fact('Budget', l.budget) + fact('Timeline', l.timeline) + fact('Call', l.call) + fact('Stage', l.stage) + fact('Source', l.source) +
+      fact('Service', l.projectType) + fact('Brand details', l.bhk) + fact('Location', l.location) + fact('Budget', l.budget) + fact('Timeline', l.timeline) + fact('Call', l.call) + fact('Stage', l.stage) + fact('Source', l.source) +
       '</dl></div>' +
       '<div class="section"><h3>Conversation</h3><div class="thread">' + (thread || '<div class="day">No messages yet</div>') + '</div></div>' +
       '<div class="d-foot"><button class="btn danger sm" id="deleteLead" type="button">' + ICON.trash + 'Delete lead</button></div></div>';
@@ -421,12 +421,12 @@
   function csvCell(v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; }
   function exportCsv() {
     if (!state.leads.length) { toast('Nothing to export yet'); return; }
-    var cols = ['Name', 'Phone', 'Email', 'Source', 'Project', 'Property', 'Location', 'Budget', 'Timeline', 'Status', 'Captured', 'Summary'];
+    var cols = ['Name', 'Phone', 'Email', 'Source', 'Service', 'Brand details', 'Location', 'Budget', 'Timeline', 'Status', 'Captured', 'Summary'];
     var rows = state.leads.map(function (l) { return [l.name, l.phone, l.email, l.source, l.projectType, l.bhk, l.location, l.budget, l.timeline, statusLabel(l.status), l.time, l.summary]; });
     var csv = cols.map(csvCell).join(',') + '\n' + rows.map(function (r) { return r.map(csvCell).join(','); }).join('\n');
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
-    a.download = 'interioarty-leads-' + new Date().toISOString().slice(0, 10) + '.csv';
+    a.download = 'gladucame-leads-' + new Date().toISOString().slice(0, 10) + '.csv';
     document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
   }
