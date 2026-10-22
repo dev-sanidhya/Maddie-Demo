@@ -32,7 +32,7 @@ async function createApp(config, { store, llmOverride, fetchImpl, debounceMs, lo
   const agent = new Agent({ llm });
   const engine = new Engine({
     store, settings, agent, config, log,
-    debounceMs: debounceMs === undefined ? 1200 : debounceMs,
+    debounceMs: debounceMs === undefined ? (Number(process.env.DEBOUNCE_MS) || 6000) : debounceMs, // quiet time before replying, so a burst of messages gets one answer
     transports: { sim: { send: async () => ({}) } },
   });
   const calendar = new Calendar({ google: new GoogleCalendar({ account: config.googleServiceAccount, fetchImpl, log }), settings, log });

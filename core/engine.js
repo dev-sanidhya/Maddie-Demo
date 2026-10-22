@@ -258,7 +258,7 @@ class Engine extends EventEmitter {
           }
           const rows = await this.store.all("SELECT * FROM messages WHERE lead_id=? AND direction='in' AND processed=0 ORDER BY id", leadId);
           if (!rows.length) break;
-          await this.turn(leadId, rows);
+          await this.turn(leadId, rows, { allowDefer: guard < 3 });
         }
       } finally {
         await release();
@@ -283,7 +283,7 @@ class Engine extends EventEmitter {
   }
 
   // ---------- the turn ----------
-  async turn(leadId, rows) {
+  async turn(leadId, rows, { allowDefer = false } = {}) {
     const settings = this.settings.get();
     let lead = await this.store.getLead(leadId);
     if (!lead) return;
@@ -341,6 +341,13 @@ class Engine extends EventEmitter {
       const info = {};
       const reply = await this.compose(lead, decision.directive, settings, history.concat(rows), info);
       if (info.failed) aiFailed = true;
+
+      // Another message arrived while the reply was being written: drop this reply (nothing is sent or marked
+      // as handled) so the next pass answers everything they said in ONE message, the way a person would.
+      if (allowDefer && lead.channel !== 'sim' && await this.store.get("SELECT id FROM messages WHERE lead_id=? AND direction='in' AND processed=0 AND id>? LIMIT 1", leadId, Math.max(...rowIds))) {
+        await this.store.addEvent(lead.id, 'reply_deferred', { reason: 'newer_message' });
+        return;
+      }
 
       // 4. Commit everything for this turn atomically.
       const out = await this.commitTurn({ lead, decision, reply, rowIds, prevStage, changed: applied.changed, aiFailed });
