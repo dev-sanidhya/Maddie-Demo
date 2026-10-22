@@ -37,6 +37,8 @@ const silent = { log() {}, warn() {}, error() {} };
   let a = await lead('Riya');
   let r = await say(a, 'Hi, we are a skincare D2C brand called Rosewater and want an influencer campaign for our new serum launch');
   show('bot', r.reply); check(!BAD.test(r.reply), 'reply has no interior-design or guarantee wording');
+  r = await say(a, 'We sell serums and moisturisers online, and we want to reach women 22 to 35 who care about clean beauty'); show('bot', r.reply);
+  r = await say(a, 'We tried a couple of micro creators before but the content was inconsistent'); show('bot', r.reply);
   r = await say(a, 'Mumbai and Delhi mainly'); show('bot', r.reply);
   r = await say(a, 'budget is around 8 lakh'); show('bot', r.reply);
   r = await say(a, 'launching next month'); show('bot', r.reply);

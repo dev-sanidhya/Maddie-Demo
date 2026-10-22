@@ -105,7 +105,7 @@ function fakeLlm() {
     }
     const offer = sys.match(/call times and no others: (.+?)\. Ask which/);
     if (offer) return `${/is not available/.test(sys) ? 'That time is taken. ' : ''}I can do ${offer[1]}. Which suits you?`;
-    const confirm = sys.match(/ on (.+?)\."/);
+    const confirm = sys.match(/: (.+?)\."/);
     if (confirm) return `Perfect, we will call you ${confirm[1]}.`;
     return 'Thanks, noted.';
   };

@@ -13,17 +13,19 @@ const STAGE_LABELS = {
   disqualified: 'Disqualified',
   human: 'Needs human',
 };
-const FIELD_LABELS = { project_type: 'project type', city: 'city', budget: 'budget', timeline: 'timeline' };
-const FIELD_ORDER = ['project_type', 'city', 'budget', 'timeline'];
+const FIELD_LABELS = { project_type: 'project type', context: 'brand and campaign goals', city: 'city', budget: 'budget', timeline: 'timeline' };
+const FIELD_ORDER = ['project_type', 'context', 'city', 'budget', 'timeline'];
 
 const { formatMoney } = require('./budget');
 
-function fieldKnown(lead, field) {
+function fieldKnown(lead, field, settings = { qualification: {} }) {
   switch (field) {
     case 'project_type': return !!lead.project_type;
     case 'city': return !!lead.city;
     case 'budget': return lead.budget_amount !== null && lead.budget_amount !== undefined;
     case 'timeline': return lead.timeline_months !== null && lead.timeline_months !== undefined;
+    // enough background about the brand and what they want: counted from the concrete details they have shared
+    case 'context': return ((lead.meta && lead.meta.memory) || []).length >= Math.max(1, Number(settings.qualification.context_details) || 4);
     default: return true;
   }
 }
@@ -63,7 +65,7 @@ function evaluate(lead, settings, { hasInbound = true } = {}) {
   const declined = (lead.meta && lead.meta.declined) || {};
   const money = (n) => formatMoney(n, q.currency);
 
-  const missing = q.required.filter((f) => !fieldKnown(lead, f));
+  const missing = q.required.filter((f) => !fieldKnown(lead, f, settings));
   const askable = FIELD_ORDER.filter((f) => missing.includes(f) && !declined[f]);
   const base = { missing, askable, nextField: askable[0] || null };
   const score = computeScore(lead, settings, missing);

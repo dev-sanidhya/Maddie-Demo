@@ -33,6 +33,8 @@ const DEFAULTS = {
     borderline_pct: 0,
     active_within_months: 3,
     required: ['project_type', 'city', 'budget', 'timeline'],
+    // with 'context' required: how many concrete details about the brand and goals the assistant gathers first
+    context_details: 4,
     service_cities: [],
     project_types: ['Full home', 'Modular kitchen', 'Office', 'Renovation', 'Other'],
   },
@@ -98,7 +100,8 @@ function sanitize(s) {
   q.min_budget = Math.max(0, Number(q.min_budget) || 0);
   q.borderline_pct = Math.min(50, Math.max(0, Number(q.borderline_pct) || 0));
   q.active_within_months = Math.max(0, Number(q.active_within_months) || 0);
-  q.required = listish(q.required).filter((f) => ['project_type', 'city', 'budget', 'timeline'].includes(f));
+  q.required = listish(q.required).filter((f) => ['project_type', 'context', 'city', 'budget', 'timeline'].includes(f));
+  q.context_details = Math.min(10, Math.max(1, Math.round(Number(q.context_details)) || 4));
   if (!q.required.length) q.required = ['budget'];
   q.service_cities = listish(q.service_cities);
   q.project_types = listish(q.project_types);

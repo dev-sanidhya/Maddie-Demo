@@ -12,6 +12,7 @@ const { formatWhen } = require('./when');
 
 const FIELD_ASK_HINT = {
   project_type: 'what kind of project or service they are after (use the exact service names from the business facts, never invent options)',
+  context: 'more about their brand and what they want to achieve: what they sell, who they want to reach, what a great result looks like, what they have tried before, their website or social profile, what they expect to be delivered. Make it ONE open, curious question that invites them to tell you more in their own words, and pick whichever of these they have not told you yet',
   city: 'which city or area the project is in',
   budget: 'roughly what budget they have in mind (a ballpark or range is perfectly fine)',
   timeline: 'when they are hoping to start or move in',
@@ -20,6 +21,7 @@ const FIELD_ASK_HINT = {
 
 const FALLBACK_ASK = {
   project_type: 'What kind of project do you have in mind?',
+  context: 'Could you tell me a little more about your brand and what you are hoping this campaign will achieve?',
   city: 'Which city is the project in?',
   budget: 'Roughly what budget do you have in mind? A ballpark is fine.',
   timeline: 'When are you hoping to start or move in?',
@@ -28,6 +30,10 @@ const FALLBACK_ASK = {
 
 // Used only when the AI is unreachable: different wording each time so it never loops.
 const ALT_ASK = {
+  context: [
+    'Could you tell me a bit more about your brand and who you are hoping to reach?',
+    'What would a great result look like for you with this campaign?',
+  ],
   project_type: [
     'Sorry, I want to make sure I get this right. Could you tell me a little about what you are planning?',
     'No problem, tell me in your own words what you have in mind and I will take it from there.',
@@ -92,7 +98,7 @@ function directiveBody(d, ctx) {
   switch (d.type) {
     case 'GREET':
       if (settings.agent.polish) {
-        return `This is your FIRST message to ${lead.name || 'them'}. Write it like a person at a design studio: greet them by first name, one short welcome line${lead.city || lead.project_type ? ` that shows you noticed what they said (${[lead.project_type, lead.city].filter(Boolean).join(' in ')})` : ''}, say who you are in a few words, then ask naturally: ${FIELD_ASK_HINT[d.field] || 'how you can help'}. At most two or three short sentences. Do not say you have "a couple of quick questions" and do not mention matching them with anyone.`;
+        return `This is your FIRST message to ${lead.name || 'them'}. Write it like a person at the agency: greet them by first name, one short welcome line${lead.city || lead.project_type ? ` that shows you noticed what they said (${[lead.project_type, lead.city].filter(Boolean).join(' in ')})` : ''}, say who you are in a few words, then ask naturally: ${FIELD_ASK_HINT[d.field] || 'how you can help'}. At most two or three short sentences. Do not say you have "a couple of quick questions" and do not mention matching them with anyone.`;
       }
       return `This is your FIRST message to ${lead.name || 'them'}. Greet them by first name, thank them for their enquiry${lead.city || lead.project_type ? ` (they mentioned ${[lead.project_type, lead.city].filter(Boolean).join(' in ')})` : ''}, introduce yourself in one short clause, and say you have a couple of quick questions to match them with the right team member. Then ask, naturally: ${FIELD_ASK_HINT[d.field] || 'how you can help'}. Keep the whole message to 2 or 3 sentences and do not list examples.`;
     case 'ASK': {
@@ -102,13 +108,13 @@ function directiveBody(d, ctx) {
     case 'ANSWER':
       return 'They asked a question. Answer it briefly and helpfully using ONLY the business facts above. If you do not know, say a team member can confirm on a free consultation. Do not ask any question.';
     case 'CLOSE_ACTIVE':
-      return `They are a strong fit. Thank them warmly and show you understood their project in ONE natural sentence, without repeating their words back mechanically (for context: ${[lead.project_type, lead.city, lead.budget_amount != null ? `budget around ${money(lead.budget_amount)}` : '', lead.timeline_text || (lead.timeline_months != null ? `${lead.timeline_months} months` : '')].filter(Boolean).join(', ')}). ${designer ? `Tell them ${designer.name}${designer.title ? `, ${designer.title}` : ''}, from the team will review their brief and reach out. Do not promise a specific time.` : 'Tell them a senior designer from the team will review their brief and reach out. Do not promise a specific time.'} ${lead.callback_at ? `They already booked a call for ${formatWhen(lead.callback_at, settings.business.timezone)}, so confirm that time instead of asking for one.` : d.slots && d.slots.length ? slotAsk(d.slots) : (lead.phone || lead.email) ? 'Then ask what day and time suit them for a quick call. Ask only that one question.' : 'Then ask, in ONE question, what day and time suit them for a quick call and the best phone number to reach them on.'}`;
+      return `They are a strong fit. Thank them warmly and show you understood their brand and goals in ONE natural sentence, without repeating their words back mechanically (for context: ${[lead.project_type, lead.city, lead.budget_amount != null ? `budget around ${money(lead.budget_amount)}` : '', lead.timeline_text || (lead.timeline_months != null ? `${lead.timeline_months} months` : '')].filter(Boolean).join(', ')}). Say you now have a good picture, that you will connect them with ${designer ? `${designer.name}${designer.title ? `, ${designer.title}` : ''}, from the team` : 'the right person on the team'}, who will review their brief, and that the next step is a quick intro call. Do not promise a specific time or any outcome. ${lead.callback_at ? `They already booked a call for ${formatWhen(lead.callback_at, settings.business.timezone)}, so confirm that time instead of asking for one.` : d.slots && d.slots.length ? slotAsk(d.slots) : (lead.phone || lead.email) ? 'Then ask what day and time suit them for a quick call. Ask only that one question.' : 'Then ask, in ONE question, what day and time suit them for a quick call and the best phone number to reach them on.'}`;
     case 'OFFER_SLOTS':
       return d.slots && d.slots.length
         ? `The time they asked for (${d.requested}) is not available. Say so kindly in one short clause, without apologising at length, then ${slotAsk(d.slots)}`
         : `The time they asked for (${d.requested}) is not available and no other slot is free in the next days. Say so kindly and tell them the team will message them with a time shortly. Ask nothing.`;
     case 'CONFIRM_CALLBACK':
-      return `They just told you when they would like the call. Confirm it warmly in one short, complete sentence that names who will call and reads this time back exactly as written, for example: "Perfect, we have you down for a call with ${designer ? designer.name : 'our team'} on ${d.when}." Do not reply with only the time. Do not use brackets. ${lead.phone || lead.email ? 'No question needed.' : 'Then, as a SEPARATE new sentence, ask for the best phone number to reach them on.'}`;
+      return `They just told you when they would like the call. Confirm it warmly in one short, complete sentence that names who will call and reads this time back exactly as written, for example: "Perfect, we have you down for a call with ${designer ? designer.name : 'our team'}: ${d.when}." Do not reply with only the time. Do not use brackets. ${lead.phone || lead.email ? 'No question needed.' : 'Then, as a SEPARATE new sentence, ask for the best phone number to reach them on.'}`;
     case 'REMINDER':
       return `Send a short, friendly reminder (1 or 2 sentences) that ${designer ? designer.name : 'a brand lead'} will call them ${d.when ? `at ${d.when}` : 'soon'}. That is the one confirmed time: say it exactly as written and do NOT mention, guess or offer any other day or time, even if the earlier chat discussed one. Say they can reply here if they need to change it. Do not ask any question.`;
     case 'CLOSE_NURTURE':
@@ -147,7 +153,7 @@ function replySystem(directive, ctx) {
 ${businessBlock(settings)}
 
 YOUR PERSONALITY:
-- Speak like a warm, knowledgeable studio consultant who is genuinely excited to help someone shape their space. Premium but human: never corporate, never robotic, never clipped or transactional. ${a.tone}.
+- Speak like a warm, knowledgeable agency consultant who is genuinely interested in the customer's brand and goals. Professional but human: never corporate, never robotic, never clipped or transactional. ${a.tone}.
 - Keep replies to 2 to 4 sentences. No walls of text, but let real warmth and personality come through. This is a conversation, not a checklist.
 - Plain, confident language. Contractions are fine. A friendly exclamation mark is fine where it feels natural, but do not overdo it. ${a.languages}
 - React like a person, not a form. Do NOT parrot back what they just said ("You are looking for X in Y, great"). Acknowledge it in a few fresh words, add one genuinely useful or encouraging thought, then move on.
@@ -160,7 +166,7 @@ YOUR TASK FOR THIS MESSAGE:
 ${directiveText(directive, ctx)}
 
 HARD RULES (never break these):
-- If asked something outside this business, politely steer back to how the team can help with their space. Never go along with the off-topic request.
+- If asked something outside this business, politely steer back to how the team can help with their brand. Never go along with the off-topic request.
 - Check before you agree. When the customer asks you to confirm something ("did I say my budget was 20 lakh?", "didn't you promise X?"), compare it with what you know about them above and the chat. If it does not match, politely correct them with the right detail; never say yes just because they asked. Never agree to a discount, promise or commitment the business facts do not contain.
 - A message that starts with "[Photo]" is a picture the customer sent, and the words after it describe what it shows. React like a person who just looked at it: one concrete observation about the picture (never a generic compliment), then carry on with your task. Never say you cannot see or open photos, and never quote the bracket or the description word for word. If it says the photo could not be analysed, thank them, say you have passed it to the team and ask what it shows.
 - You remember the whole chat: everything above and in the messages is real. If the customer asks what they told you earlier, answer from it exactly; if it is not there, say you do not have that and ask. Never make up something they supposedly said.
@@ -190,9 +196,9 @@ JSON shape (use null when the CUSTOMER has not stated it):
   "budget_text": string|null,    // their words, e.g. "8 to 10 lakh"
   "timeline_months": number|null,// months until they want to start/move in. 0 for "now", "asap", "immediately", "this month". null if unstated
   "timeline_text": string|null,  // their words
-  "property": string|null,       // the property: type and size, e.g. "3BHK flat, 1450 sq ft, under construction"
-  "scope": string|null,          // what work they want, e.g. "modular kitchen and two wardrobes", "full home"
-  "style": string|null,          // design taste, e.g. "modern minimal, light woods"
+  "property": string|null,       // the brand or business: what they sell or do, its category, website or social profile, e.g. "D2C skincare brand, 40 products, @rosewater.in"
+  "scope": string|null,          // what they want done: services, goals and deliverables, e.g. "influencer campaign with 20 creators for a serum launch", "launch PR and celebrity gifting"
+  "style": string|null,          // the tone or vibe they like, e.g. "premium and minimal", "fun and youthful"
   "contact_pref": string|null,   // best time or way to reach them, e.g. "evenings after 7", "WhatsApp only"
   "callback_text": string|null,  // when they want or can take a call, visit or meeting, in their own words, e.g. "tomorrow 5 pm"
   "callback_at": string|null,    // that same moment as local time "YYYY-MM-DDTHH:MM" in ${tz}, worked out from the current date above; null if no exact time was given

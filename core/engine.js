@@ -31,6 +31,7 @@ const FINAL = new Set(['active', 'nurture', 'disqualified']);
 const HISTORY_WINDOW = 14;
 const MIN_OVERFLOW = 6; // summarise once this many messages have scrolled out of the live window
 const MAX_ASKS_PER_FIELD = 3;
+const maxAsks = (field) => (field === 'context' ? 5 : MAX_ASKS_PER_FIELD); // open discovery questions get more room
 const LEASE_MS = 75000;
 const IN_CLAUSE = (ids) => ids.map(() => '?').join(',');
 
@@ -366,7 +367,7 @@ class Engine extends EventEmitter {
     let ev = evaluate({ ...lead, meta }, settings, { hasInbound: this.hasInbound(lead) });
     // A field asked repeatedly with no usable answer stops being asked.
     let guard = 0;
-    while (ev.nextField && (meta.asked[ev.nextField] || 0) >= MAX_ASKS_PER_FIELD && guard++ < 4) {
+    while (ev.nextField && (meta.asked[ev.nextField] || 0) >= maxAsks(ev.nextField) && guard++ < 4) {
       meta.declined[ev.nextField] = true;
       ev = evaluate({ ...lead, meta }, settings, { hasInbound: this.hasInbound(lead) });
     }
