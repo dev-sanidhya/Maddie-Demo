@@ -56,3 +56,4 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 - "In next 10-15 days" was missed by the model, causing three repeat timeline questions and a "no rush" nurture close: the rule reader now backs up the timeline answer.
 - Several reel shares in a row get one acknowledgement.
 - Tests: test/chatfixes.test.js.
+- Call hours (2026-10-26): intro calls only 10 AM to 6 PM IST. Settings calendar work hours 10 to 18 (applied to prod), the assistant is told to offer and accept times only inside the window, and facts.js refuses to book an exact time outside it (kept as a preference, assistant asks for a time inside the window). Booked calls are persistent: only the customer's latest words can change them (tests in test/chatfixes.test.js).

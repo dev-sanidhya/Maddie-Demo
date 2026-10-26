@@ -138,7 +138,16 @@ function applyFacts(lead, f, userText, { lastAsked = null, settings, now = Date.
     else if (det && det.at && det.hasTime) at = det.at;
     const words = clip((typeof f.callback_text === 'string' && f.callback_text.trim()) || userText, 80);
     if (at !== null && at < now - 10 * 60000) at = null;
+    // calls only happen inside working hours (default 10 AM to 6 PM business time): an exact time outside them is kept as a
+    // preference and the assistant asks for a time inside the window instead of booking it
+    const cal = (settings && settings.calendar) || {};
+    const minuteOfDay = (ts) => { const p = new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(ts); return Number(p.find((x) => x.type === 'hour').value) * 60 + Number(p.find((x) => x.type === 'minute').value); };
+    if (at !== null && Number.isFinite(cal.work_start_hour) && Number.isFinite(cal.work_end_hour)) {
+      const m = minuteOfDay(at);
+      if (m < cal.work_start_hour * 60 || m > cal.work_end_hour * 60) { at = null; meta.flags.callback_outside = true; }
+    }
     if (at !== null) {
+      delete meta.flags.callback_outside;
       if (lead.callback_at !== at) {
         set('callback_at', at);
         set('callback_text', words);
@@ -149,6 +158,7 @@ function applyFacts(lead, f, userText, { lastAsked = null, settings, now = Date.
     } else if ((det && det.day) || (typeof f.callback_text === 'string' && f.callback_text.trim())) {
       // A preference without an exact time ("tomorrow evening", "sometime next week").
       if (!lead.callback_at && lead.callback_text !== words) { set('callback_text', words); set('callback_status', 'requested'); }
+      else if (meta.flags.callback_outside && !lead.callback_at) set('callback_status', 'requested');
     }
     if (typeof f.callback_kind === 'string' && /visit|video|call/i.test(f.callback_kind)) set('callback_kind', /visit/i.test(f.callback_kind) ? 'visit' : /video/i.test(f.callback_kind) ? 'video' : 'call');
   }

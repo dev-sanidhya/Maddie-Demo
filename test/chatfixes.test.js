@@ -54,3 +54,39 @@ test('"in next 10-15 days" answers the timeline question even if the model retur
   const l = await app.store.getLead(lead.id);
   assert.ok(l.timeline_months !== null && l.timeline_months <= 1, `timeline captured (${l.timeline_months})`);
 });
+
+test('a time outside 10 AM to 6 PM is not booked, it is kept as a preference', () => {
+  const s = { ...settings, calendar: { ...settings.calendar, work_start_hour: 10, work_end_hour: 18 } };
+  const lead = { id: 5, meta: {} };
+  const late = applyFacts(lead, { callback_text: 'tomorrow 9 pm', callback_at: '2026-10-27T21:00' }, 'tomorrow 9 pm works', { lastAsked: 'callback', settings: s, now });
+  assert.strictEqual(late.patch.callback_at, undefined);
+  assert.strictEqual(late.meta.flags.callback_outside, true);
+  const early = applyFacts(lead, { callback_text: 'tomorrow 8 am', callback_at: '2026-10-27T08:00' }, 'tomorrow 8 am', { lastAsked: 'callback', settings: s, now });
+  assert.strictEqual(early.patch.callback_at, undefined);
+  const ok = applyFacts(lead, { callback_text: 'tomorrow 6 pm', callback_at: '2026-10-27T18:00' }, 'tomorrow 6 pm', { lastAsked: 'callback', settings: s, now });
+  assert.ok(ok.patch.callback_at, '6 PM sharp is inside the window');
+});
+
+test('a booked call stays exactly as stored through unrelated messages, and only an explicit change moves it', async () => {
+  const { Store } = require('../core/db');
+  const { createApp } = require('../core/app');
+  const baseConfig = require('../core/config');
+  let mode = 'noise';
+  const llm = async (o) => {
+    if ((o.system || '').includes('You extract structured facts')) {
+      // the model keeps re-reading the old time from history, as it did in production
+      return mode === 'noise' ? { callback_text: 'tomorrow 5 pm', callback_at: '2099-01-01T17:00' } : { callback_text: 'friday 3 pm', callback_at: '' };
+    }
+    return 'Noted.';
+  };
+  const config = { ...baseConfig, telegramToken: '', adminPassword: 'pw', intakeSecret: 's', databaseUrl: '' };
+  const app = await createApp(config, { store: await Store.open({ file: ':memory:' }), llmOverride: llm, debounceMs: 0, log: { log() {}, warn() {}, error() {} } });
+  const booked = Date.now() + 2 * 86400000;
+  const lead = await app.store.createLead({ channel: 'sim', chat_id: 'sim:keep', name: 'K', source: 't', start_token: 'keep' });
+  await app.store.updateLead(lead.id, { callback_at: booked, callback_text: 'booked', callback_status: 'scheduled' });
+  for (const t of ['Hey there', 'thanks', 'what does reporting look like?']) {
+    await app.engine.receive({ channel: 'sim', chatId: 'sim:keep', text: t });
+    await app.engine.settle();
+    assert.strictEqual((await app.store.getLead(lead.id)).callback_at, booked, `unchanged after "${t}"`);
+  }
+});
