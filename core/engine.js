@@ -377,7 +377,9 @@ class Engine extends EventEmitter {
     let directive = null;
 
     if (stage === 'human') {
-      directive = meta.closed_stage === 'human' ? null : { type: 'HANDOFF', reason: reasonText };
+      const routed = meta.flags && meta.flags.routed;
+      // routed people (creators, press, existing clients) keep getting short replies; someone who asked for a person gets silence
+      directive = meta.closed_stage === 'human' ? (routed ? { type: 'POST' } : null) : { type: 'HANDOFF', reason: reasonText, routed };
     } else if (FINAL.has(stage)) {
       if (meta.closed_stage === stage) {
         directive = { type: 'POST', gotPhone: changed.includes('phone') };

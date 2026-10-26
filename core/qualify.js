@@ -13,6 +13,7 @@ const STAGE_LABELS = {
   disqualified: 'Disqualified',
   human: 'Needs human',
 };
+const ROUTED_REASON = { creator: 'Creator enquiry: for the influencer team', press: 'Press enquiry: for the PR team', existing_client: 'Existing client: for the account manager' };
 const FIELD_LABELS = { project_type: 'project type', context: 'brand and campaign goals', city: 'city', budget: 'budget', timeline: 'timeline' };
 const FIELD_ORDER = ['project_type', 'context', 'city', 'budget', 'timeline'];
 
@@ -72,6 +73,9 @@ function evaluate(lead, settings, { hasInbound = true } = {}) {
 
   if (lead.stage_locked) {
     return { ...base, stage: lead.stage, reason: lead.stage_reason || 'Set manually', score };
+  }
+  if (flags.routed && !lead.ai_paused && !flags.wants_human) {
+    return { ...base, stage: 'human', reason: ROUTED_REASON[flags.routed] || 'Needs a person', score };
   }
   if (lead.ai_paused || flags.wants_human) {
     return { ...base, stage: 'human', reason: flags.wants_human ? 'Asked for a human' : 'AI paused, a human has the conversation', score };

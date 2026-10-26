@@ -43,3 +43,8 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 - Webhook works end to end: DM in, reply out, lead in /crm with stage Active, service, city, budget, timeline, phone and booked call. aperture_sa credentials are in use for the demo (swap to gladucamepr later).
 - Fixed after the live test: bare "Tomorrow, Fri 23 Oct, 5:00 PM." call confirmation (prompt now asks for a full sentence), "we can definitely make that happen" style soft promises (prompt rule), and replies to message bursts. The engine now waits DEBOUNCE_MS (default 6000) of quiet and drops a reply if a newer message arrived while it was written, so several messages get ONE reply; prompt also says to ask at most one question and not end every reply with one.
 - Not done: Instagram "swipe to reply" threading to a specific message.
+
+## Creator, press and existing-client routing (2026-10-26)
+- Extraction now classifies who is writing (brand, creator, press, existing_client). Creator, press and existing-client messages are routed to stage "Needs human" with a reason (influencer team, PR team, account manager) instead of being qualified as brand leads; the person's own words must back the classification so a brand mentioning influencers is not rerouted. Routed people still get short replies (the assistant stays on); someone who asks for a person pauses it as before.
+- Replies: creators are told the influencer team handles creator collaborations and are asked once for handle and niche, with no pitching or promises; press get the PR team line and no statements.
+- Tests: test/routing.test.js and a creator check in scripts/regress-glad.js. Team member names for the influencer and PR teams are not set up yet.

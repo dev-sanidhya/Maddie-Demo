@@ -16,6 +16,14 @@ const PHONE_RE = /(?:\+?\d[\d\s().-]{6,17}\d)/;
 const HUMAN_WORDS = /\b(human|person|people|agent|representative|someone|somebody|staff|manager|owner|real|bot|robot|talk to|speak to|speak with|talk with|connect me|insaan|aadmi|banda|kisi se|complain|complaint|angry|useless|worst|scam|fraud|rubbish|stupid|idiot|annoying)\b/i;
 const STOP_WORDS = /\b(not interested|no longer|stop|unsubscribe|remove me|leave me|don'?t (want|message|contact|call)|do not (want|message|contact|call)|nahi chahiye|nahin chahiye|mat karo|no thanks|no thank you|nope|cancel|changed my mind|forget it|never mind|nevermind)\b/i;
 
+// Who is writing: creators, press and existing clients are not new brand leads. The model proposes a type and
+// the person's own words must back it up, so a brand that merely mentions influencers is never rerouted.
+const ROUTE_WORDS = {
+  creator: /\b(i am|i'm|im|i m|we are|we're|as)\b[^.?!]{0,40}\b(creator|influencer|blogger|vlogger|youtuber|content creator|model|artist)\b|\bmy (instagram|page|channel|handle|followers|reels|content|niche|profile)\b|\b\d+\s?(k|m)?\s?followers\b|\bjoin (your|the) (roster|network|team|campaigns?)\b|\bi (do|make|create|post|shoot|run)\b[^.?!]{0,30}\b(reels|content|videos|posts|a page|a channel)\b|\b(campaigns?|gigs?|collabs?|opportunit(y|ies)) (i|we) can (join|do|apply)\b|\bcan i (join|apply|collab|work with you)\b/i,
+  press: /\b(journalist|reporter|editor|magazine|publication|newspaper|press|media house|podcast|writing a (story|piece|feature)|feature on|interview)\b/i,
+  existing_client: /\b(already (a |your )?client|existing client|current client|ongoing campaign|our ongoing|working with you|my account manager|our account manager)\b/i,
+};
+
 const clip = (s, n) => String(s).trim().replace(/\s+/g, ' ').slice(0, n);
 const validNum = (v) => typeof v === 'number' && Number.isFinite(v);
 
@@ -149,6 +157,7 @@ function applyFacts(lead, f, userText, { lastAsked = null, settings, now = Date.
     timeline: known.timeline_months != null,
   };
   if (f.wants_human === true && HUMAN_WORDS.test(userText)) meta.flags.wants_human = true;
+  if (!meta.flags.routed && ROUTE_WORDS[f.contact_type] && ROUTE_WORDS[f.contact_type].test(userText)) meta.flags.routed = f.contact_type;
   if (f.not_interested === true && STOP_WORDS.test(userText)) meta.flags.not_interested = true;
   else if (changed.length && meta.flags.not_interested) delete meta.flags.not_interested;
   if (Array.isArray(f.refused)) {
