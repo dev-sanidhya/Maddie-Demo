@@ -319,6 +319,11 @@ class Engine extends EventEmitter {
         facts = quickFacts(text, lastAsked, settings); // no AI: still read the common answers by rule
       }
       facts = facts || {};
+      // the model sometimes misses a plain answer to the timeline question ("in next 10-15 days"): the rule reader fills it in
+      if (facts.timeline_months == null && lastAsked === 'timeline') {
+        const qf = quickFacts(text, lastAsked, settings);
+        if (qf.timeline_months != null) { facts.timeline_months = qf.timeline_months; facts.timeline_text = facts.timeline_text || qf.timeline_text; }
+      }
       // "the second one": the customer picked one of the call times we offered
       const offered = lead.meta.offered || [];
       if (offered.length && lastAsked === 'callback') {

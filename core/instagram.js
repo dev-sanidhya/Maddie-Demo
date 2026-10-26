@@ -370,6 +370,9 @@ class Instagram {
         await this.store.updateLead(lead.id, { last_inbound_at: Date.now() });
         const first = (lead.name || '').split(/\s+/)[0];
         const reply = `Thanks${first ? `, ${first}` : ''}, I can see you sent ${MEDIA[kind]}. I cannot open attachments in this chat yet, so could you tell me in a few words what it shows or what you would like us to see? I will pass it to the team.`;
+        // several shares in a row get one acknowledgement, not one each
+        const lastOut = await this.store.get("SELECT text, created_at FROM messages WHERE lead_id=? AND direction='out' ORDER BY id DESC LIMIT 1", lead.id);
+        if (lastOut && lastOut.text === reply && Date.now() - Number(lastOut.created_at) < 30 * 60000) return;
         const id = await this.store.addMessage({ lead_id: lead.id, direction: 'out', role: 'assistant', text: reply, status: 'pending' });
         await this.engine.deliver(id).catch(() => {});
         return;

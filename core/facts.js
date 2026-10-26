@@ -122,15 +122,20 @@ function applyFacts(lead, f, userText, { lastAsked = null, settings, now = Date.
   // wording is about meeting, even if the model did not flag it.
   const rescheduleWords = /\b(make it|instead|change|reschedul|move|shift|postpone|prepone|can we|could we|call|meet|visit|available|free|works)\b/i;
   const detEarly = (lead.callback_at || lead.callback_text) && rescheduleWords.test(userText) ? parseWhen(userText, now, tz) : null;
-  const wantsCallback = lastAsked === 'callback' || (typeof f.callback_text === 'string' && f.callback_text.trim()) || !!(detEarly && detEarly.hasTime);
+  // The model sees the whole chat and may re-read an old "tomorrow 5 pm" when someone just says "hey": a call time is only
+  // taken from the model when the customer's own latest words contain a day or a time.
+  const det = parseWhen(userText, now, tz);
+  const userSaidTime = !!(det && (det.day || det.hasTime));
+  const wantsCallback = lastAsked === 'callback' || (typeof f.callback_text === 'string' && f.callback_text.trim() && userSaidTime) || !!(detEarly && detEarly.hasTime);
   if (wantsCallback) {
-    const det = parseWhen(userText, now, tz);
+    const hourIn = (ts) => Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', hourCycle: 'h23' }).format(ts));
     let llmAt = typeof f.callback_at === 'string' ? isoLocalToEpoch(f.callback_at, tz) : null;
     if (llmAt !== null && (llmAt < now - 10 * 60000 || llmAt > now + 120 * 86400000)) llmAt = null;
     let at = null;
     if (det && det.at && det.hasTime && !det.approx) at = det.at;
-    else if (llmAt !== null) at = llmAt;
-    else if (det && det.at) at = det.at;
+    // "tomorrow anytime" has a day but no time: that is a preference, never midnight
+    else if (llmAt !== null && !(det && !det.hasTime) && hourIn(llmAt) !== 0) at = llmAt;
+    else if (det && det.at && det.hasTime) at = det.at;
     const words = clip((typeof f.callback_text === 'string' && f.callback_text.trim()) || userText, 80);
     if (at !== null && at < now - 10 * 60000) at = null;
     if (at !== null) {

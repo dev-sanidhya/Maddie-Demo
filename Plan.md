@@ -48,3 +48,11 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 - Extraction now classifies who is writing (brand, creator, press, existing_client). Creator, press and existing-client messages are routed to stage "Needs human" with a reason (influencer team, PR team, account manager) instead of being qualified as brand leads; the person's own words must back the classification so a brand mentioning influencers is not rerouted. Routed people still get short replies (the assistant stays on); someone who asks for a person pauses it as before.
 - Replies: creators are told the influencer team handles creator collaborations and are asked once for handle and niche, with no pitching or promises; press get the PR team line and no statements.
 - Tests: test/routing.test.js. Team member names for the influencer and PR teams are not set up yet.
+
+## Fixes from the production chats (2026-10-26)
+- A plain "Hey there" re-read an old "tomorrow 5 pm" and silently moved a booked call: call times are now only taken from the customer's latest words.
+- "Tomorrow anytime" booked 12:00 AM: a day without a time is now a preference and the assistant asks which time suits (no guessing hours).
+- Replies that opened by restating what the customer said ("You're looking to...") are trimmed by the validator and forbidden in the prompt; no stacked questions, no call talk unless the task says so.
+- "In next 10-15 days" was missed by the model, causing three repeat timeline questions and a "no rush" nurture close: the rule reader now backs up the timeline answer.
+- Several reel shares in a row get one acknowledgement.
+- Tests: test/chatfixes.test.js.

@@ -86,6 +86,7 @@ function tidyEmojis(text, { allowed = DEFAULT_EMOJIS, previous = '', max = 2, no
 const FILLER_OPENER = /^\s*(?:absolutely|certainly|of course|definitely|sure thing|sure|great question|good question|great choice|wonderful|fantastic|awesome|no problem at all)\s*[!,.:-]+\s*/i;
 const STOCK = /(i hope (this|you)|hope this message finds|don'?t hesitate|do not hesitate|delve|tapestry|elevate your|game[- ]changer|unlock (the|your)|seamless(ly)?|cutting[- ]edge|state[- ]of[- ]the[- ]art|i'?m here to help|happy to assist|i'?d be (happy|glad|delighted) to (help|assist)|rest assured|world[- ]class|bespoke journey|as an ai|cozy and inviting|warm and inviting|beautiful and functional|beautiful (and|,) (functional|practical)|can already imagine|imagine the possibilities|a lot of options for creating|perfect (fit|blend)|sounds (like )?(a )?(great|wonderful|amazing|fantastic|lovely) (space|home|project|idea|choice|plan))/i;
 
+const RESTATES = /^(so,? )?(you(?:'re| are| have|'ve| mentioned| said| want| need| would like| plan| told)\b|having\b|with (?:a|an|your) (?:budget|timeline|launch)\b|your (?:budget|timeline|launch|goal)s? (?:is|are|of)\b|a (?:budget|timeline) of\b|it sounds like you\b|i (?:see|understand|hear|noticed) (?:that )?you\b)/i;
 function polish(text) {
   let t = String(text).replace(FILLER_OPENER, '');
   const kept = splitSentences(t).filter((s) => !STOCK.test(s));
@@ -125,6 +126,9 @@ function sanitizeReply(text, lead, { maxQuestions = 1, maxChars = 650, grounding
     }
     kept.push(s);
   }
+  // Replies that open by repeating what the customer just said ("You're looking to launch next week, ...") read as
+  // repetitive: when something else follows, that first sentence goes.
+  if (tone && kept.length >= 2 && RESTATES.test(kept[0])) kept.shift();
   let out = kept.join(' ').replace(/\s+\n/g, '\n').trim();
   if (out.length > maxChars) {
     const cut = out.slice(0, maxChars);
