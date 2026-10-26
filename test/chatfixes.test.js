@@ -137,3 +137,9 @@ test('a Hinglish customer message tells the model to answer in Hinglish', async 
   await app.engine.settle();
   assert.ok(!prompts.some((p) => /writing in Hinglish/.test(p)), 'English message gets no Hinglish instruction');
 });
+
+test('a Hinglish double question keeps the first', () => {
+  const lead = { id: 12, meta: {} };
+  const out = sanitizeReply('Aapka chai brand kis tarah ka hai, aur kaun se log aapke target audience hain?', lead, { polish: true, maxQuestions: 1 });
+  assert.strictEqual(out, 'Aapka chai brand kis tarah ka hai?');
+});

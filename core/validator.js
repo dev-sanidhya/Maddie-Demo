@@ -92,7 +92,7 @@ const SOFT_PROMISE = /\b(?:we|i)(?:'ll| will| can)? definitely\b|\bdefinitely (?
 // "What do you sell, and who is your audience?" is two questions: keep the first.
 function singleQuestion(s) {
   if (!/\?\s*$/.test(s)) return s;
-  const m = s.match(/^(.*?),? (?:and|or|plus) (?=(?:what|how|who|which|where|when|why|do you|are you|is there|would you|could you|can you|have you|did you)\b)/i);
+  const m = s.match(/^(.*?),? (?:and|or|plus|aur|ya) (?=(?:what|how|who|which|where|when|why|do you|are you|is there|would you|could you|can you|have you|did you|kaun|kya|kis|kaise|kab|kahan|kitna|kitne|kyun)\b)/i);
   return m && m[1].length > 15 ? `${m[1]}?` : s;
 }
 function polish(text) {
