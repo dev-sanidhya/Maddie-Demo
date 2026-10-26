@@ -47,4 +47,4 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 ## Creator, press and existing-client routing (2026-10-26)
 - Extraction now classifies who is writing (brand, creator, press, existing_client). Creator, press and existing-client messages are routed to stage "Needs human" with a reason (influencer team, PR team, account manager) instead of being qualified as brand leads; the person's own words must back the classification so a brand mentioning influencers is not rerouted. Routed people still get short replies (the assistant stays on); someone who asks for a person pauses it as before.
 - Replies: creators are told the influencer team handles creator collaborations and are asked once for handle and niche, with no pitching or promises; press get the PR team line and no statements.
-- Tests: test/routing.test.js and a creator check in scripts/regress-glad.js. Team member names for the influencer and PR teams are not set up yet.
+- Tests: test/routing.test.js. Team member names for the influencer and PR teams are not set up yet.
