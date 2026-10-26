@@ -49,3 +49,35 @@ test('press and existing clients are routed with their own reason', async () => 
   lead = await say(t.app, 'Hi, we are an existing client, can I speak to my account manager about our ongoing campaign?');
   assert.match(lead.stage_reason, /Existing client/);
 });
+
+test('creator details are collected one question at a time and kept on the lead', async () => {
+  const { creatorMissing } = require('../core/qualify');
+  assert.deepStrictEqual(creatorMissing('creator', {}, {}), ['handle', 'followers', 'niche', 'city', 'interest']);
+  assert.deepStrictEqual(creatorMissing('creator', { handle: '@a', followers: '10k', niche: 'food', city: 'Pune', interest: 'gifting' }, {}), []);
+  assert.deepStrictEqual(creatorMissing('creator_in_campaign', { issue: 'payment' }, {}), ['brand_campaign', 'deliverable']);
+  assert.deepStrictEqual(creatorMissing('agency_manager', { agency: 'X' }, { phone: '1' }), ['creators_represented', 'interest']);
+
+  const seen = [];
+  const llm = async (o) => {
+    const sys = o.system || '';
+    if (sys.includes('You extract structured facts')) return { contact_type: 'creator', creator: { handle: '@meeraloves', niche: 'skincare', city: 'Pune', followers: '60k', interest: 'paid campaigns' } };
+    seen.push(sys);
+    return 'Thanks, noted.';
+  };
+  const config = { ...baseConfig, telegramToken: '', adminPassword: 'pw', intakeSecret: 's', databaseUrl: '' };
+  const app = await createApp(config, { store: await Store.open({ file: ':memory:' }), llmOverride: llm, debounceMs: 0, log: silent });
+  await app.settings.update({ business: { creator_notes: 'NEVER quote a fee. Gifting addresses stay with the team.' } });
+  const lead = await say(app, "I'm a lifestyle creator with 60k followers, @meeraloves in Pune, I want paid campaigns");
+  assert.strictEqual(lead.stage, 'human');
+  assert.strictEqual(lead.property, '@meeraloves, 60k followers, skincare, Pune');
+  assert.strictEqual(lead.scope, 'paid campaigns');
+  assert.ok(seen.some((s) => /APPROVED CREATOR AND INFLUENCER NOTES/.test(s) && /NEVER quote a fee/.test(s)), 'the approved creator notes reach the prompt');
+  assert.ok(seen.some((s) => /You now have what you need: thank them/.test(s)), 'with everything collected the assistant wraps up');
+});
+
+test('someone who says they manage creators is routed to the BD team', async () => {
+  const { app } = await boot(null);
+  const lead = await say(app, 'Hello, I manage a few fashion creators, would you be open to working with them?');
+  assert.strictEqual(lead.stage, 'human');
+  assert.match(lead.stage_reason, /Manager or agency/);
+});

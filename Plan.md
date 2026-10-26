@@ -57,3 +57,11 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 - Several reel shares in a row get one acknowledgement.
 - Tests: test/chatfixes.test.js.
 - Call hours (2026-10-26): intro calls only 10 AM to 6 PM IST. Settings calendar work hours 10 to 18 (applied to prod), the assistant is told to offer and accept times only inside the window, and facts.js refuses to book an exact time outside it (kept as a preference, assistant asks for a time inside the window). Booked calls are persistent: only the customer's latest words can change them (tests in test/chatfixes.test.js).
+
+## Creator flow from the answered questionnaire (2026-10-26)
+- New settings field business.creator_notes (admin: Settings, Your business, Creator and influencer rules) holds the approved creator facts and rules; used only in creator chats. Applied to prod by scripts/client-glad-u-came.js.
+- Creators are no longer just handed off: a CREATOR directive has a real conversation, answers from the approved notes, and collects handle, followers, niche, city and languages, and interest one question at a time (then wraps up). Details are kept in lead.meta.creator and shown in the CRM as Brand and details (handle, followers, niche, city) and What they want (interest).
+- Kinds: creator (influencer team), creator_in_campaign (priority, campaign coordinator: never confirms status, deadlines, approvals or payment), agency_manager (BD team). Press and existing clients unchanged.
+- Hard rules from the client: never quote or agree fees, no selection or payment-date promises, no shipping address or sensitive documents in DMs, no follower thresholds, no auto-decline of free collabs, never share other creators or brand details. Light emojis allowed for creators.
+- TO CONFIRM with Glad U Came (do not invent): follower tiers, roster open or paused, what each 50% means for creators, gifting schedule and rules, onboarding form or sheet link, campaign tracker access, team names and SLA, retention, real example replies.
+- Tests: test/routing.test.js (creator collection, notes in prompt, managers).

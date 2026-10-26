@@ -86,7 +86,7 @@ function tidyEmojis(text, { allowed = DEFAULT_EMOJIS, previous = '', max = 2, no
 const FILLER_OPENER = /^\s*(?:absolutely|certainly|of course|definitely|sure thing|sure|great question|good question|great choice|wonderful|fantastic|awesome|no problem at all)\s*[!,.:-]+\s*/i;
 const STOCK = /(i hope (this|you)|hope this message finds|don'?t hesitate|do not hesitate|delve|tapestry|elevate your|game[- ]changer|unlock (the|your)|seamless(ly)?|cutting[- ]edge|state[- ]of[- ]the[- ]art|i'?m here to help|happy to assist|i'?d be (happy|glad|delighted) to (help|assist)|rest assured|world[- ]class|bespoke journey|as an ai|cozy and inviting|warm and inviting|beautiful and functional|beautiful (and|,) (functional|practical)|can already imagine|imagine the possibilities|a lot of options for creating|perfect (fit|blend)|sounds (like )?(a )?(great|wonderful|amazing|fantastic|lovely) (space|home|project|idea|choice|plan))/i;
 
-const RESTATES = /^(so,? )?(you(?:'re| are| have|'ve| mentioned| said| want| need| would like| plan| told)\b|having\b|with (?:a|an|your) (?:budget|timeline|launch)\b|your (?:budget|timeline|launch|goal)s? (?:is|are|of)\b|a (?:budget|timeline) of\b|it sounds like you\b|i (?:see|understand|hear|noticed) (?:that )?you\b)/i;
+const RESTATES = /^(so,? )?(you(?:'re| are| have|'ve| mentioned| said| want| need| would like| plan| told)\b|having\b|with (?:a|an|your) (?:budget|timeline|launch)\b|your (?:budget|timeline|launch|goal)s? (?:is|are|of)\b|a (?:budget|timeline) of\b|it sounds like you\b|i (?:see|understand|hear|noticed) (?:that )?you\b|(?:we|i)(?:'ve| have) noted (?:that )?you\b)/i;
 function polish(text) {
   let t = String(text).replace(FILLER_OPENER, '');
   const kept = splitSentences(t).filter((s) => !STOCK.test(s));
@@ -100,7 +100,7 @@ function polish(text) {
 
 // opts.maxQuestions: 1 for qualification turns, 0 for closings. opts.grounding: the text of facts a reply may rely on.
 
-function sanitizeReply(text, lead, { maxQuestions = 1, maxChars = 650, grounding, emojis = 'off', polish: tone = false, previous = '', declining = false } = {}) {
+function sanitizeReply(text, lead, { maxQuestions = 1, maxChars = 650, grounding, emojis = 'off', emojiSet, polish: tone = false, previous = '', declining = false } = {}) {
   if (!text) return '';
   let t = String(text)
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
@@ -137,7 +137,7 @@ function sanitizeReply(text, lead, { maxQuestions = 1, maxChars = 650, grounding
   }
   out = out.trim();
   if (tone) out = polish(out);
-  if (emojis === 'light') out = tidyEmojis(out, { previous, none: declining });
+  if (emojis === 'light') out = tidyEmojis(out, { previous, none: declining, ...(emojiSet ? { allowed: emojiSet } : {}) });
   return out;
 }
 

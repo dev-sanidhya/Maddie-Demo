@@ -14,6 +14,8 @@ const DEFAULTS = {
     pricing_note: 'Pricing depends on carpet area, material and scope. Never quote exact numbers; offer a free consultation for an accurate estimate.',
     areas: 'Pune and nearby, other cities case by case',
     extra_knowledge: 'A typical full-home project takes 8 to 12 weeks. Every project gets a dedicated designer, a 3D design preview and a site supervisor.',
+    // approved facts and rules for creators and influencers who message the business (used only in creator chats)
+    creator_notes: '',
   },
   agent: {
     name: 'Aria',
@@ -107,6 +109,7 @@ function sanitize(s) {
   q.project_types = listish(q.project_types);
   q.currency = String(q.currency || 'INR').toUpperCase().slice(0, 4);
   s.business.services = listish(s.business.services);
+  s.business.creator_notes = String(s.business.creator_notes || '').slice(0, 8000);
   s.business.contact_email = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/.test(String(s.business.contact_email || '').trim()) ? String(s.business.contact_email).trim() : '';
   const f = s.followups;
   f.enabled = !!f.enabled;

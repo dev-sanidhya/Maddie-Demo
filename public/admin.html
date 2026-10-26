@@ -807,8 +807,9 @@ async function tabBiz() {
     <div class="grid2"><div><label class="f">Where you work</label><input id="ba" value="${esc(b.areas)}"></div><div><label class="f">Your time zone</label><input id="btz" value="${esc(b.timezone)}"><div class="help">For example Asia/Kolkata. Used to understand "tomorrow 5 pm".</div></div></div>
     <label class="f">How should it talk about prices?</label><textarea id="bp">${esc(b.pricing_note)}</textarea>
     <label class="f">Other things it may mention</label><textarea id="be" style="min-height:96px">${esc(b.extra_knowledge)}</textarea>
+    <label class="f">Creator and influencer rules</label><textarea id="bcn" style="min-height:160px">${esc(b.creator_notes || '')}</textarea><div class="help">What the assistant may say to creators and influencers who message you, and what it must never promise. Used only in creator chats.</div>
     <button class="btn primary" style="margin-top:18px" id="saveBiz">Save</button></div>`;
-  $('#saveBiz').onclick = act(async () => { await saveSettings({ business: { name: val('bn'), tagline: val('bt'), description: val('bd'), services: lines(val('bs')), areas: val('ba'), timezone: val('btz'), pricing_note: val('bp'), extra_knowledge: val('be') } }); await refreshBoot(); });
+  $('#saveBiz').onclick = act(async () => { await saveSettings({ business: { name: val('bn'), tagline: val('bt'), description: val('bd'), services: lines(val('bs')), areas: val('ba'), timezone: val('btz'), pricing_note: val('bp'), extra_knowledge: val('be'), creator_notes: val('bcn') } }); await refreshBoot(); });
 }
 async function tabAssistant() {
   const a = SET().agent;

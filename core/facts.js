@@ -19,6 +19,8 @@ const STOP_WORDS = /\b(not interested|no longer|stop|unsubscribe|remove me|leave
 // Who is writing: creators, press and existing clients are not new brand leads. The model proposes a type and
 // the person's own words must back it up, so a brand that merely mentions influencers is never rerouted.
 const ROUTE_WORDS = {
+  creator_in_campaign: /\b(payment|invoice|paid|deadline|approval|approved|approve|brief|deliverables?|posting|post date|go(es|ing)? live|campaign|edits?|revision)\b/i,
+  agency_manager: /\b(manager|management|agency|talent|represent(s|ing)?|my creators|our creators|our talent|roster of)\b/i,
   creator: /\b(i am|i'm|im|i m|we are|we're|as)\b[^.?!]{0,40}\b(creator|influencer|blogger|vlogger|youtuber|content creator|model|artist)\b|\bmy (instagram|page|channel|handle|followers|reels|content|niche|profile)\b|\b\d+\s?(k|m)?\s?followers\b|\bjoin (your|the) (roster|network|team|campaigns?)\b|\bi (do|make|create|post|shoot|run)\b[^.?!]{0,30}\b(reels|content|videos|posts|a page|a channel)\b|\b(campaigns?|gigs?|collabs?|opportunit(y|ies)) (i|we) can (join|do|apply)\b|\bcan i (join|apply|collab|work with you)\b/i,
   press: /\b(journalist|reporter|editor|magazine|publication|newspaper|press|media house|podcast|writing a (story|piece|feature)|feature on|interview)\b/i,
   existing_client: /\b(already (a |your )?client|existing client|current client|ongoing campaign|our ongoing|working with you|my account manager|our account manager)\b/i,
@@ -172,7 +174,26 @@ function applyFacts(lead, f, userText, { lastAsked = null, settings, now = Date.
     timeline: known.timeline_months != null,
   };
   if (f.wants_human === true && HUMAN_WORDS.test(userText)) meta.flags.wants_human = true;
-  if (!meta.flags.routed && ROUTE_WORDS[f.contact_type] && ROUTE_WORDS[f.contact_type].test(userText)) meta.flags.routed = f.contact_type;
+  // someone saying outright that they manage or represent creators is routed even if the model missed it
+  if (!meta.flags.routed && /\b(i|we) (manage|represent|run|handle)\b[^.?!]{0,50}\b(creators?|influencers?|talent|models|celebrit\w+)\b|\b(talent|influencer) (management|agency)\b/i.test(userText)) meta.flags.routed = 'agency_manager';
+  const upgrades = { creator: ['creator_in_campaign'] };
+  const kindNow = meta.flags.routed;
+  if (ROUTE_WORDS[f.contact_type] && ROUTE_WORDS[f.contact_type].test(userText) && (!kindNow || (upgrades[kindNow] || []).includes(f.contact_type))) meta.flags.routed = f.contact_type;
+  // creator details, collected one question at a time and kept on the lead
+  if (f.creator && typeof f.creator === 'object') {
+    const cr = { ...(meta.creator || {}) };
+    for (const k of ['handle', 'platform', 'followers', 'niche', 'city', 'languages', 'email', 'media_kit', 'manager', 'past_collabs', 'interest', 'agency', 'creators_represented', 'brand_campaign', 'deliverable', 'issue', 'rate_expectation']) {
+      const v = f.creator[k];
+      if (typeof v === 'string' && v.trim() && !/^(null|none|n\/a|unknown|not (sure|shared))$/i.test(v.trim())) cr[k] = clip(v, 140);
+    }
+    meta.creator = cr;
+    if (['creator', 'agency_manager', 'creator_in_campaign'].includes(meta.flags.routed)) {
+      const summary = [cr.handle, cr.followers && `${cr.followers} followers`, cr.niche, cr.city].filter(Boolean).join(', ');
+      if (summary) set('property', clip(summary, 80));
+      if (cr.interest) set('scope', clip(cr.interest, 160));
+      else if (cr.issue) set('scope', clip(cr.issue, 160));
+    }
+  }
   if (f.not_interested === true && STOP_WORDS.test(userText)) meta.flags.not_interested = true;
   else if (changed.length && meta.flags.not_interested) delete meta.flags.not_interested;
   if (Array.isArray(f.refused)) {

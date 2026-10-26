@@ -13,7 +13,16 @@ const STAGE_LABELS = {
   disqualified: 'Disqualified',
   human: 'Needs human',
 };
-const ROUTED_REASON = { creator: 'Creator enquiry: for the influencer team', press: 'Press enquiry: for the PR team', existing_client: 'Existing client: for the account manager' };
+const ROUTED_REASON = { creator: 'Creator enquiry: for the influencer team', creator_in_campaign: 'Creator in a campaign: priority for the campaign coordinator', agency_manager: 'Manager or agency pitch: for the BD team', press: 'Press enquiry: for the PR team', existing_client: 'Existing client: for the account manager' };
+const CREATOR_KINDS = ['creator', 'creator_in_campaign', 'agency_manager'];
+
+// What the assistant still needs to learn from a creator, a creator already in a campaign, or a manager, in the order to ask.
+function creatorMissing(kind, cr = {}, lead = {}) {
+  const has = (k) => !!(cr[k] && String(cr[k]).trim());
+  if (kind === 'creator_in_campaign') return ['brand_campaign', 'deliverable', 'issue'].filter((k) => !has(k));
+  if (kind === 'agency_manager') return [!has('agency') && 'agency', !has('creators_represented') && 'creators_represented', !has('interest') && 'interest', !(lead.email || lead.phone || has('email')) && 'contact'].filter(Boolean);
+  return [!has('handle') && 'handle', !has('followers') && 'followers', !has('niche') && 'niche', !has('city') && 'city', !has('interest') && 'interest'].filter(Boolean);
+}
 const FIELD_LABELS = { project_type: 'project type', context: 'brand and campaign goals', city: 'city', budget: 'budget', timeline: 'timeline' };
 const FIELD_ORDER = ['project_type', 'context', 'city', 'budget', 'timeline'];
 
@@ -137,4 +146,4 @@ function pickDesigner(designers, lead, loads = {}) {
   return ranked.length ? ranked[0].d : null;
 }
 
-module.exports = { evaluate, pickDesigner, fieldKnown, STAGES, STAGE_LABELS, FIELD_LABELS, FIELD_ORDER };
+module.exports = { evaluate, pickDesigner, fieldKnown, creatorMissing, CREATOR_KINDS, STAGES, STAGE_LABELS, FIELD_LABELS, FIELD_ORDER };

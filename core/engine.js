@@ -18,7 +18,7 @@ const { EventEmitter } = require('node:events');
 const crypto = require('node:crypto');
 const { applyFacts } = require('./facts');
 const { quickFacts } = require('./quickfacts');
-const { evaluate, pickDesigner, STAGE_LABELS } = require('./qualify');
+const { evaluate, pickDesigner, STAGE_LABELS, creatorMissing, CREATOR_KINDS } = require('./qualify');
 const { fallbackReply } = require('./agent');
 const { formatMoney } = require('./budget');
 const { formatWhen } = require('./when');
@@ -383,8 +383,13 @@ class Engine extends EventEmitter {
 
     if (stage === 'human') {
       const routed = meta.flags && meta.flags.routed;
+      const creatorKind = CREATOR_KINDS.includes(routed) && !lead.ai_paused ? routed : null;
       // routed people (creators, press, existing clients) keep getting short replies; someone who asked for a person gets silence
-      directive = meta.closed_stage === 'human' ? (routed ? { type: 'POST' } : null) : { type: 'HANDOFF', reason: reasonText, routed };
+      if (creatorKind) {
+        // creators get a real conversation: details are collected one question at a time, the team decides everything else
+        const missing = creatorMissing(creatorKind, meta.creator || {}, lead);
+        directive = { type: 'CREATOR', kind: creatorKind, missing, complete: !missing.length, first: greeting };
+      } else directive = meta.closed_stage === 'human' ? (routed ? { type: 'POST' } : null) : { type: 'HANDOFF', reason: reasonText, routed };
     } else if (FINAL.has(stage)) {
       if (meta.closed_stage === stage) {
         directive = { type: 'POST', gotPhone: changed.includes('phone') };
