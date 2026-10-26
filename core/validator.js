@@ -86,7 +86,15 @@ function tidyEmojis(text, { allowed = DEFAULT_EMOJIS, previous = '', max = 2, no
 const FILLER_OPENER = /^\s*(?:absolutely|certainly|of course|definitely|sure thing|sure|great question|good question|great choice|wonderful|fantastic|awesome|no problem at all)\s*[!,.:-]+\s*/i;
 const STOCK = /(i hope (this|you)|hope this message finds|don'?t hesitate|do not hesitate|delve|tapestry|elevate your|game[- ]changer|unlock (the|your)|seamless(ly)?|cutting[- ]edge|state[- ]of[- ]the[- ]art|i'?m here to help|happy to assist|i'?d be (happy|glad|delighted) to (help|assist)|rest assured|world[- ]class|bespoke journey|as an ai|cozy and inviting|warm and inviting|beautiful and functional|beautiful (and|,) (functional|practical)|can already imagine|imagine the possibilities|a lot of options for creating|perfect (fit|blend)|sounds (like )?(a )?(great|wonderful|amazing|fantastic|lovely) (space|home|project|idea|choice|plan))/i;
 
-const RESTATES = /^(so,? )?(you(?:'re| are| have|'ve| mentioned| said| want| need| would like| plan| told)\b|having\b|with (?:a|an|your) (?:budget|timeline|launch)\b|your (?:budget|timeline|launch|goal)s? (?:is|are|of)\b|a (?:budget|timeline) of\b|it sounds like you\b|i (?:see|understand|hear|noticed) (?:that )?you\b|(?:we|i)(?:'ve| have) noted (?:that )?you\b)/i;
+const RESTATES = /^(so,? )?(you(?:'re| are| have|'ve| mentioned| said| want| need| would like| plan| told)\b|having\b|with (?:a|an|your) (?:budget|timeline|launch)\b|your (?:budget|timeline|launch|goal)s? (?:is|are|of)\b|a (?:budget|timeline) of\b|it sounds like you\b|i (?:see|understand|hear|noticed) (?:that )?you\b|(?:we|i)(?:'ve| have) noted (?:that )?you(?:r|'re)?\b)/i;
+// Things the business never says: soft promises about what it can deliver, and judging whether a timeline is workable.
+const SOFT_PROMISE = /\b(?:we|i)(?:'ll| will| can)? definitely\b|\bdefinitely (?:make|work|do|deliver|get|handle)\b|\b(?:a |that is a |that's a |it is a |it's a )?tight (?:but |timeline|deadline|turnaround|schedule)|\bmake that happen\b|\bwork with that\b|\b(?:good|great|nice) challenge\b|\b(?:manageable|doable|feasible|achievable)\b|\b(?:don'?t|do not|never|not) (?:usually |typically |generally )?(?:offer|give|provide) (?:any )?discounts?\b|\bno discounts?\b|\b(?:we(?:'ve| have)|you(?:'d| had| have)|i(?:'ve| have)) (?:already )?(?:discussed|mentioned|covered|talked about)\b[^.?!]*\bearlier\b/i;
+// "What do you sell, and who is your audience?" is two questions: keep the first.
+function singleQuestion(s) {
+  if (!/\?\s*$/.test(s)) return s;
+  const m = s.match(/^(.*?),? (?:and|or|plus) (?=(?:what|how|who|which|where|when|why|do you|are you|is there|would you|could you|can you|have you|did you)\b)/i);
+  return m && m[1].length > 15 ? `${m[1]}?` : s;
+}
 function polish(text) {
   let t = String(text).replace(FILLER_OPENER, '');
   const kept = splitSentences(t).filter((s) => !STOCK.test(s));
@@ -119,12 +127,13 @@ function sanitizeReply(text, lead, { maxQuestions = 1, maxChars = 650, grounding
   let questions = 0;
   for (const s of splitSentences(t)) {
     if (reasksKnown(s, lead)) continue;
+    if (tone && SOFT_PROMISE.test(s)) continue;
     if (ungrounded(s, grounding)) continue;
     if (isQuestion(s)) {
       if (questions >= maxQuestions) continue;
       questions++;
     }
-    kept.push(s);
+    kept.push(tone && isQuestion(s) ? singleQuestion(s) : s);
   }
   // Replies that open by repeating what the customer just said ("You're looking to launch next week, ...") read as
   // repetitive: when something else follows, that first sentence goes.

@@ -35,7 +35,7 @@ function fieldKnown(lead, field, settings = { qualification: {} }) {
     case 'budget': return lead.budget_amount !== null && lead.budget_amount !== undefined;
     case 'timeline': return lead.timeline_months !== null && lead.timeline_months !== undefined;
     // enough background about the brand and what they want: counted from the concrete details they have shared
-    case 'context': return ((lead.meta && lead.meta.memory) || []).length >= Math.max(1, Number(settings.qualification.context_details) || 4);
+    case 'context': return (((lead.meta && lead.meta.memory) || []).length + (lead.property ? 1 : 0) + (lead.scope ? 1 : 0)) >= Math.max(1, Number(settings.qualification.context_details) || 3);
     default: return true;
   }
 }

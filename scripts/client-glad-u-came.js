@@ -54,7 +54,7 @@ const SETTINGS = {
       'Campaign references you may name when relevant: Domino\'s Big Big 6-in-1 influencer campaign (250 creators); Cello "Aaj Kitna Paani Piya?", a 21-day hydration challenge with 35 nano creators; Ethnix by Raymond "Wedding Stories", PR and influencer marketing around the brand\'s Lakmé Fashion Week showcase, with celebrity, media and creator coordination; Kompanero, a published PR and gifting case study.',
       'NEVER invent or cite impressions, reach, engagement rates, sales uplift, article counts or ROI. If asked for results, say the team will share approved case studies.',
       'Process: 1) enquiry and qualification, 2) discovery call and detailed brief, 3) proposal, scope and commercial discussion, 4) approval, agreement and payment as per agreed terms, 5) planning and execution, 6) coordination, approvals and updates, 7) final reporting and closure.',
-      'Typical influencer cycle milestones (working milestones, NOT guarantees; confirm the real schedule with the team): creator lists shared before the 25th, selections by the 1st, hamper dispatch by the 5th, content submissions from the 5th, content gathered by the 15th.',
+      'Campaign timelines: if asked how long something takes, say it depends on the service, the scale and client approvals, and that the team confirms the real schedule after the brief. Only if they ask specifically about the influencer campaign cycle may you add that the usual working cycle is creator lists before the 25th, selections by the 1st, hamper dispatch by the 5th, content submissions from the 5th and content gathered by the 15th, and that these are working milestones, not guarantees, which the team confirms for each campaign.',
       'Reporting: coverage links, published content, deliverable status, creator submissions, available analytics and observations; the account team reviews and approves the report before it goes to the client.',
       'Contract terms depend on the approved scope. Do not negotiate or modify them.',
       'Preferred clients: fashion and apparel, beauty and skincare, lifestyle and accessories, jewellery and luxury, food and beverage, consumer and D2C, hospitality and experiences. Do not turn anyone away based on industry, budget or brand size.',
@@ -88,7 +88,7 @@ const SETTINGS = {
     borderline_pct: 0,
     active_within_months: 120,
     required: ['project_type', 'context', 'city', 'budget', 'timeline'],
-    context_details: 4,
+    context_details: 3,
     service_cities: [],
     project_types: ['Public relations', 'Influencer marketing', 'Celebrity collaboration', 'Celebrity gifting', 'Events and launches', 'Talent sourcing', 'Other'],
   },
@@ -103,7 +103,8 @@ const SETTINGS = {
 
 // Names beyond the founder were not provided: these are role placeholders to rename in the admin console.
 const TEAM = [
-  { name: 'Maddie Amrutkar', title: 'Founder and CEO', specialties: 'Public relations, Celebrity collaboration, Other', cities: '', bio: 'Strategic and high-value opportunities.' },
+  // not auto-assigned: the founder takes strategic and high-value opportunities, picked by the team in the CRM
+  { name: 'Maddie Amrutkar', title: 'Founder and CEO', specialties: 'Public relations, Celebrity collaboration, Other', cities: '', bio: 'Strategic and high-value opportunities.', active: false },
   { name: 'Business Development Team', title: 'Routine discovery calls', specialties: 'Influencer marketing, Events and launches, Talent sourcing, Celebrity gifting', cities: '', bio: 'Routine new business enquiries.' },
 ];
 

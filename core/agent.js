@@ -89,7 +89,10 @@ function businessBlock(s) {
 
 function directiveText(d, ctx) {
   const first = d.first ? `This is the very first message of the chat, so start by greeting ${(ctx.lead.name || 'them').split(' ')[0]} warmly by first name and thanking them for the enquiry. ` : '';
-  return first + directiveBody(d, ctx);
+  const answerFirst = d.type === 'GREET' ? 'If their first message already contains a question, answer it first in one or two sentences using ONLY the business facts, then continue. ' : '';
+  const hinglish = ctx.hinglish ? ' The customer is writing in Hinglish: write your WHOLE reply in simple, friendly Hinglish (Hindi words in English letters), keeping brand names, numbers and amounts as they are.' : '';
+  const phone = d.gotPhone ? ' They just shared their phone number: confirm you have it by reading the digits back so they can check them, and never say you already had it.' : '';
+  return first + answerFirst + directiveBody(d, ctx) + phone + hinglish;
 }
 
 function directiveBody(d, ctx) {
@@ -110,7 +113,7 @@ function directiveBody(d, ctx) {
       const HINT = { handle: 'their Instagram handle or profile link', followers: 'their main platform and roughly how many followers they have', niche: 'what kind of content they create (their niche)', city: 'which city they are based in and which languages they create in', interest: 'what they are looking for: paid campaigns, gifting, event invites or joining the creator network', brand_campaign: 'which brand or campaign this is about, only if they are comfortable sharing it', deliverable: 'which deliverable or post they mean', issue: 'what exactly they need checked or sorted out', agency: 'the name of their agency or management company', creators_represented: 'which creators they represent and roughly what size they are', contact: 'the best email or number for the team to reach them on' };
       const need = (d.missing || [])[0];
       const hello = d.first ? `This is the very first message of the chat: greet ${(lead.name || 'them').split(' ')[0]} warmly by first name and thank them for reaching out to ${settings.business.name}. ` : '';
-      const never = "Never confirm or hint at selection, a campaign, a fee, payment dates, gifting, deliveries or any timeline, never name brands, briefs or budgets, never share other creators' details, and never ask for passwords, OTPs, ID or financial documents or a shipping address.";
+      const never = "ANSWER FIRST: if they asked anything (fees, payment, gifting, selection, upcoming brands, other platforms), answer it in one or two sentences from the approved notes before anything else; for fees, selection, brands and timelines say the team decides or reviews and you cannot say. Do not list back the details they gave. If they offer a shipping address, thank them, do not take it, and say the team will ask for delivery details privately if they confirm eligibility. If they write in Hinglish, reply in simple friendly Hinglish. Never confirm or hint at selection, a campaign, a fee, payment dates, gifting, deliveries or any timeline, never name brands, briefs or budgets, never share other creators' details, and never ask for passwords, OTPs, ID or financial documents or a shipping address.";
       if (d.kind === 'creator_in_campaign') {
         return `${hello}They are a creator already working on a campaign and are asking about a deadline, approval, deliverable or payment. Do NOT confirm or deny any status, deadline, approval, edit, posting permission or payment. Say warmly that you have noted it and are passing it to the campaign team to verify the latest status, and that the team will update them. ${never} ${need ? `Then ask ONE question to find out ${HINT[need]}.` : 'You have what you need: ask nothing.'}`;
       }
@@ -197,6 +200,9 @@ HARD RULES (never break these):
 - Never claim the team has worked on projects in a particular area, never mention past clients, awards, years in business, team size or any numbers, unless they are written in the business facts above. Stay warm and general instead ("we'd love to help with that").
 - Never say or imply the business only works in one city or that projects elsewhere are refused. Say other locations can be discussed case by case.
 - Ask at most ONE question per message, and only if your task says to ask one. Never stack questions, and never join two questions with "and" or "or".
+- Never say a timeline is tight, comfortable, fine or doable, and never say "we can definitely" do, make or work with anything: say the team will review the brief. If asked for a discount or special terms, say only that commercial terms are discussed with the team once they have the brief: never say whether discounts are or are not offered, and never agree to anything. Never say you discussed or mentioned something earlier unless it is really in the chat above.
+- If asked whether you are a bot, an AI or a real person, say honestly that you are ${settings.business.name}'s virtual assistant and that the team steps in whenever needed. Never claim to be a human or a member of the team. Any call is with the team, never with you: never say you will call or talk to them.
+- If the customer writes in Hinglish (Hindi in English letters), reply in simple, friendly Hinglish in the same style.
 - Never begin a reply by repeating back what the customer just told you. Do not mention a call, a phone number or the team reaching out unless your task says so.
 - Never ask for something already listed above. Never say the team will reach out, or hint the chat is wrapping up, unless your task says so.
 - Never use em dashes. Use commas, periods or colons. Plain text only: no markdown, no bullet points. ${emojiRule(a, directive.type === 'CREATOR' ? CREATOR_EMOJIS.join(' ') : undefined)}
@@ -232,7 +238,7 @@ JSON shape (use null when the CUSTOMER has not stated it):
   "details": string[],           // each NEW concrete fact the customer stated in THIS message that is not one of the fields above: their brand or product, goals, audience, platforms, past experience, preferences, people and their roles, dates, constraints, things they ask you to avoid. Short phrases, max 12 words, third person, e.g. "co-founder Meera handles finance", "last agency's creators posted late". Empty array if none. Never questions, never anything the assistant said.
   "contact_type": string|null,   // who is writing: "brand" (a business wanting PR, influencers or events), "creator" (an influencer, content creator, model or talent who wants to join the roster, get paid campaigns or gifting, or pitch a collaboration), "creator_in_campaign" (a creator or manager already working on a live campaign asking about deadlines, approvals, deliverables or payment), "agency_manager" (someone who manages or represents creators or talent, or runs a talent or influencer agency, for example "I manage a few creators"), "press" (a journalist or media person), "existing_client" (a brand that already works with the agency), "other". null if unclear. A brand asking for influencers is "brand", never "creator". Someone asking about NEW paid campaigns they could join is "creator", not "creator_in_campaign"
   "creator": object|null,        // only for creator, creator_in_campaign or agency_manager: what THEY said in this chat, each value a short string or null: {"handle","platform","followers","niche","city","languages","email","media_kit","manager","past_collabs","interest" (paid campaigns, gifting, event invites, roster),"agency","creators_represented","brand_campaign","deliverable","issue","rate_expectation"}
-  "wants_human": boolean,        // true ONLY if they use words like "human", "real person", "agent", "representative", "stop the bot", "talk to someone instead of a bot", or are angry or abusive. NOT human requests: agreeing to a call, proposing a call time, sharing a number, or saying they would rather discuss budget or details with the designer. Those are normal and false.
+  "wants_human": boolean,        // asking whether they are talking to a bot or an AI is NOT a request for a human. true ONLY if they use words like "human", "real person", "agent", "representative", "stop the bot", "talk to someone instead of a bot", or are angry or abusive. NOT human requests: agreeing to a call, proposing a call time, sharing a number, or saying they would rather discuss budget or details with the designer. Those are normal and false.
   "not_interested": boolean,     // clearly says stop, not interested, or asks to be removed
   "refused": string[]            // among "project_type","city","budget","timeline": fields the customer declined or dodged this turn ("prefer not to say", "not sure yet", "later")
 }
@@ -274,6 +280,8 @@ class Agent {
     if (!merged.length || merged[merged.length - 1].role !== 'user') {
       merged.push({ role: 'user', content: '(Write the next message to send to the customer, following your task.)' });
     }
+    const lastUser = [...history].reverse().find((m) => m.role === 'user');
+    ctx.hinglish = !!lastUser && (String(lastUser.text || '').toLowerCase().match(/\b(hai|hain|hum|hume|humko|karna|karni|karo|kar|chahiye|chahte|kaise|kya|nahi|nahin|bhai|aur|mein|ka|ki|ke|liye|mahine|agle|abhi|hun|hoon|sakti|sakta|aapke|aapki|mera|meri|apna|apne|bata|batao|kitna|kitne|paisa|bhejo)\b/g) || []).length >= 2;
     const raw = await this.llm.complete({
       system: replySystem(directive, ctx),
       messages: merged,

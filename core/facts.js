@@ -173,7 +173,10 @@ function applyFacts(lead, f, userText, { lastAsked = null, settings, now = Date.
     budget: known.budget_amount != null,
     timeline: known.timeline_months != null,
   };
-  if (f.wants_human === true && HUMAN_WORDS.test(userText)) meta.flags.wants_human = true;
+  // "are you a bot?" is a question about the assistant, not a request for a person
+  const asksIfBot = /\b(are you|r u|is this|am i (?:talking|speaking|chatting) (?:to|with)) (?:a |an )?(?:bot|robot|ai|human|real person|machine|automated)\b/i.test(userText);
+  const asksForPerson = /\b(talk|speak|connect|transfer|get me|want|need)\b[^.?!]{0,30}\b(human|person|someone|agent|representative|manager|team)\b/i.test(userText);
+  if (f.wants_human === true && HUMAN_WORDS.test(userText) && !(asksIfBot && !asksForPerson)) meta.flags.wants_human = true;
   // someone saying outright that they manage or represent creators is routed even if the model missed it
   if (!meta.flags.routed && /\b(i|we) (manage|represent|run|handle)\b[^.?!]{0,50}\b(creators?|influencers?|talent|models|celebrit\w+)\b|\b(talent|influencer) (management|agency)\b/i.test(userText)) meta.flags.routed = 'agency_manager';
   const upgrades = { creator: ['creator_in_campaign'] };

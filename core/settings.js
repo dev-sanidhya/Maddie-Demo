@@ -36,7 +36,7 @@ const DEFAULTS = {
     active_within_months: 3,
     required: ['project_type', 'city', 'budget', 'timeline'],
     // with 'context' required: how many concrete details about the brand and goals the assistant gathers first
-    context_details: 4,
+    context_details: 3,
     service_cities: [],
     project_types: ['Full home', 'Modular kitchen', 'Office', 'Renovation', 'Other'],
   },

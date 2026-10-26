@@ -90,3 +90,50 @@ test('a booked call stays exactly as stored through unrelated messages, and only
     assert.strictEqual((await app.store.getLead(lead.id)).callback_at, booked, `unchanged after "${t}"`);
   }
 });
+
+test('soft promises and timeline judgements are dropped, and a double question keeps the first', () => {
+  const lead = { id: 9, meta: {} };
+  const a = sanitizeReply("Next month is a tight timeline, but we can definitely work with that. What kind of products do you sell, and who is your target audience?", lead, { polish: true, maxQuestions: 1 });
+  assert.ok(!/definitely|tight/i.test(a), a);
+  assert.match(a, /What kind of products do you sell\?$/);
+  const b = sanitizeReply("A 1-month timeline is a good challenge for us. Which city is the campaign in?", lead, { polish: true, maxQuestions: 1 });
+  assert.ok(!/challenge/i.test(b), b);
+});
+
+test('asking "are you a bot?" does not hand the chat to a person', () => {
+  const lead = { id: 10, meta: {} };
+  const r = applyFacts(lead, { wants_human: true }, 'hi are you a bot?', { lastAsked: null, settings, now });
+  assert.ok(!r.meta.flags.wants_human);
+  const ask = applyFacts(lead, { wants_human: true }, 'I want to talk to a real person please', { lastAsked: null, settings, now });
+  assert.ok(ask.meta.flags.wants_human);
+});
+
+test('invented "discussed earlier" and "we do not offer discounts" lines are dropped', () => {
+  const lead = { id: 11, meta: {} };
+  const out = sanitizeReply("You'd mentioned payment terms earlier. We also don't offer discounts. For influencer campaigns the structure is 50% on confirmation and 50% on go-live. Which city is the campaign in?", lead, { polish: true, maxQuestions: 1 });
+  assert.ok(!/earlier|discount/i.test(out), out);
+  assert.match(out, /50% on confirmation/);
+});
+
+test('a Hinglish customer message tells the model to answer in Hinglish', async () => {
+  const { Store } = require('../core/db');
+  const { createApp } = require('../core/app');
+  const baseConfig = require('../core/config');
+  const prompts = [];
+  const llm = async (o) => {
+    if ((o.system || '').includes('You extract structured facts')) return {};
+    prompts.push(o.system);
+    return 'Theek hai.';
+  };
+  const config = { ...baseConfig, telegramToken: '', adminPassword: 'pw', intakeSecret: 's', databaseUrl: '' };
+  const app = await createApp(config, { store: await Store.open({ file: ':memory:' }), llmOverride: llm, debounceMs: 0, log: { log() {}, warn() {}, error() {} } });
+  await app.settings.update({ agent: { polish: true } });
+  await app.store.createLead({ channel: 'sim', chat_id: 'sim:hg', name: 'H', source: 't', start_token: 'hg' });
+  await app.engine.receive({ channel: 'sim', chatId: 'sim:hg', text: 'bhai hume influencer campaign karna hai apne chai brand ke liye' });
+  await app.engine.settle();
+  assert.ok(prompts.some((p) => /writing in Hinglish/.test(p)), 'Hinglish instruction present');
+  prompts.length = 0;
+  await app.engine.receive({ channel: 'sim', chatId: 'sim:hg', text: 'We want an influencer campaign for our chai brand' });
+  await app.engine.settle();
+  assert.ok(!prompts.some((p) => /writing in Hinglish/.test(p)), 'English message gets no Hinglish instruction');
+});

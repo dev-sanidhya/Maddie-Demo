@@ -31,7 +31,7 @@ const FINAL = new Set(['active', 'nurture', 'disqualified']);
 const HISTORY_WINDOW = 14;
 const MIN_OVERFLOW = 6; // summarise once this many messages have scrolled out of the live window
 const MAX_ASKS_PER_FIELD = 3;
-const maxAsks = (field) => (field === 'context' ? 5 : MAX_ASKS_PER_FIELD); // open discovery questions get more room
+const maxAsks = () => MAX_ASKS_PER_FIELD;
 const LEASE_MS = 75000;
 const IN_CLAUSE = (ids) => ids.map(() => '?').join(',');
 
@@ -320,7 +320,7 @@ class Engine extends EventEmitter {
       }
       facts = facts || {};
       // the model sometimes misses a plain answer to the timeline question ("in next 10-15 days"): the rule reader fills it in
-      if (facts.timeline_months == null && lastAsked === 'timeline') {
+      if (facts.timeline_months == null && lead.timeline_months == null && (lastAsked === 'timeline' || /\b(launch|launching|start|starting|begin|go live|going live|need it|ready by)\b/i.test(text))) {
         const qf = quickFacts(text, lastAsked, settings);
         if (qf.timeline_months != null) { facts.timeline_months = qf.timeline_months; facts.timeline_text = facts.timeline_text || qf.timeline_text; }
       }
@@ -410,6 +410,7 @@ class Engine extends EventEmitter {
       const hesitated = !!(meta.refusals && meta.refusals[field] > 0) && !changed.includes(col);
       directive = greeting ? { type: 'GREET', field } : { type: 'ASK', field, hesitated, attempt: meta.asked[field] || 0 };
     }
+    if (directive && changed.includes('phone')) directive.gotPhone = true;
     return { ev, stage, reason: reasonText, directive, lead };
   }
 
