@@ -368,7 +368,7 @@ class Store {
     return this.d.insert(
       'INSERT INTO messages(lead_id,direction,role,text,tg_update_id,ext_id,status,processed,created_at) VALUES(?,?,?,?,?,?,?,?,?)',
       m.lead_id, m.direction, m.role, m.text, m.tg_update_id ?? null, m.ext_id ?? null,
-      m.status || (m.direction === 'in' ? 'received' : 'pending'), m.processed ? 1 : 0, now(),
+      m.status || (m.direction === 'in' ? 'received' : 'pending'), m.processed ? 1 : 0, m.created_at ?? now(),
     );
   }
   getMessages(leadId, { limit = 300, afterId = 0 } = {}) {

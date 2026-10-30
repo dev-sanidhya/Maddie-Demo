@@ -28,19 +28,21 @@ function fakeLlm() {
   };
 }
 
-async function build() {
+async function build({ thread = null, mode } = {}) {
   const graph = [];
   const fetchImpl = async (url, init = {}) => {
     const body = init.body ? JSON.parse(init.body) : null;
     graph.push({ url, method: init.method, body, auth: init.headers && init.headers.Authorization });
     let data = { message_id: 'm_out', recipient_id: 'x' };
     if (/\/me\?/.test(url)) data = { user_id: IG_ID, username: 'brandstudio' };
+    else if (/\/me\/conversations/.test(url)) data = { data: thread ? [{ id: 'conv1' }] : [] };
+    else if (/\/conv1\?/.test(url)) data = { messages: { data: [...(thread || [])].reverse() } };
     else if (/\/\d+\?fields=name/.test(url)) data = { name: 'Riya Kapoor', username: 'riya.k' };
     return { ok: true, status: 200, json: async () => data };
   };
   const config = {
     ...baseConfig, telegramToken: '', demoMode: true, adminPassword: 'pw', intakeSecret: 's3cret',
-    instagram: { accessToken: 'tok', appSecret: 'appsecret', verifyToken: 'verify-me', handle: 'brandstudio', apiVersion: 'v23.0' },
+    instagram: { accessToken: 'tok', appSecret: 'appsecret', verifyToken: 'verify-me', handle: 'brandstudio', apiVersion: 'v23.0', teamThreadMode: mode || 'pause' },
   };
   const app = await createApp(config, { store: await Store.open({ file: ':memory:' }), llmOverride: fakeLlm(), fetchImpl, debounceMs: 0, log: silent });
   return { app, graph, config };
@@ -240,4 +242,61 @@ test('INCIDENT: the assistant is shown the number itself, so "what is my number?
   assert.strictEqual(reply, 'Your number is 9990052074.');
   await agent.reply({ type: 'POST', gotPhone: true }, { lead, settings, designer: null, summary: '' }, [{ role: 'user', text: '9990052074' }]);
   assert.match(seen[1], /read the digits back/);
+});
+
+const T0 = Date.now() - 3 * 86400000;
+const teamThread = () => [
+  { id: 'm1', created_time: new Date(T0).toISOString(), from: { id: IG_ID, username: 'brandstudio' }, message: 'Hi pls see your dm! We would love to work with you on the Etimya collab' },
+  { id: 'm2', created_time: new Date(T0 + 3600000).toISOString(), from: { id: 'u77', username: 'riya.k' }, message: 'Could you tell me the commercials?' },
+  { id: 'm3', created_time: new Date(T0 + 7200000).toISOString(), from: { id: IG_ID, username: 'brandstudio' }, message: 'The commercial is 3000, can stretch to 4000' },
+];
+
+test('a first message into a chat the team already started: earlier messages are loaded in order and the assistant stays out', async () => {
+  const { app, graph } = await build({ thread: teamThread() });
+  await app.instagram.handleWebhook(msgEvent('u77', 'Can we do 5k? That is my minimum', 'm_new'));
+  const lead = await app.store.getLeadByChat('ig:u77');
+  await settle(app, lead.id);
+  const rows = await app.store.all('SELECT direction, role, text, processed FROM messages WHERE lead_id=? ORDER BY id', lead.id);
+  assert.deepStrictEqual(rows.map((r) => r.direction), ['out', 'in', 'out', 'in'], 'history first, then the new message');
+  assert.match(rows[0].text, /Etimya/);
+  assert.strictEqual(rows[2].role, 'admin');
+  const after = await app.store.getLead(lead.id);
+  assert.ok(after.ai_paused, 'assistant paused because the team already spoke');
+  assert.strictEqual(sends(graph).length, 0, 'nothing was sent to the customer');
+});
+
+test('assist mode: earlier messages are loaded and the assistant carries on without a greeting', async () => {
+  const { app, graph } = await build({ thread: teamThread(), mode: 'assist' });
+  await app.instagram.handleWebhook(msgEvent('u77', 'Can we do 5k?', 'm_new2'));
+  const lead = await app.store.getLeadByChat('ig:u77');
+  await settle(app, lead.id);
+  assert.ok(!(await app.store.getLead(lead.id)).ai_paused);
+  assert.ok(sends(graph).length >= 1, 'it replied');
+  assert.ok(!/FIRST message/.test(JSON.stringify(sends(graph).map((g) => g.body))), 'no first-contact greeting');
+});
+
+test('a brand new chat with no history still gets the normal greeting', async () => {
+  const { app, graph } = await build({ thread: null });
+  await app.instagram.handleWebhook(msgEvent('u88', 'Hi, I need a full home redesign', 'm_x'));
+  const lead = await app.store.getLeadByChat('ig:u88');
+  await settle(app, lead.id);
+  assert.ok(!(await app.store.getLead(lead.id)).ai_paused);
+  assert.ok(sends(graph).length >= 1);
+});
+
+test('a message the team sends from the Instagram app is recorded and pauses the assistant (its own replies do not)', async () => {
+  const { app } = await build();
+  await app.instagram.handleWebhook(msgEvent('u99', 'Hi, I need a full home redesign', 'm_y'));
+  const lead = await app.store.getLeadByChat('ig:u99');
+  await settle(app, lead.id);
+  const botReply = (await app.store.all("SELECT text FROM messages WHERE lead_id=? AND direction='out' ORDER BY id DESC LIMIT 1", lead.id))[0].text;
+  const echo = (text, mid) => ({ object: 'instagram', entry: [{ id: IG_ID, time: Date.now(), messaging: [{ sender: { id: IG_ID }, recipient: { id: 'u99' }, timestamp: Date.now(), message: { mid, text, is_echo: true } }] }] });
+  await app.instagram.handleWebhook(echo(botReply, 'echo_bot'));
+  assert.ok(!(await app.store.getLead(lead.id)).ai_paused, "the assistant's own echo is ignored");
+  await app.instagram.handleWebhook(echo('Hey, this is Sam from the team, calling you shortly', 'echo_human'));
+  const after = await app.store.getLead(lead.id);
+  assert.ok(after.ai_paused, 'a human message pauses the assistant');
+  const last = (await app.store.all("SELECT text, role FROM messages WHERE lead_id=? ORDER BY id DESC LIMIT 1", lead.id))[0];
+  assert.match(last.text, /Sam from the team/);
+  assert.strictEqual(last.role, 'admin');
 });

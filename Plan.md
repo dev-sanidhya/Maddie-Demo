@@ -71,3 +71,19 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 - Found while fixing: two regexes had been corrupted by a bad edit (word boundaries lost) and are repaired; test/chatfixes.test.js covers them.
 - WARNING: the live evaluation used all three Cloudflare free allowances (shared with production), so until 00:00 UTC (5:30 AM IST) the assistant falls back to simple template replies. Creator scenarios and Hinglish replies were NOT re-checked live after the last fixes. Add more Cloudflare accounts with scripts/cf-accounts.js add, and do not run live-AI scripts against the production keys again without checking quota first.
 - Cloudflare pool is now 5 accounts (slots 4 and 5 added 2026-10-26, fresh allowance). Creator and Hinglish retest (scripts/retest-creator.js) passed live: creators' fee and selection questions answered first, address declined, free collab explained as brief-dependent, Hinglish replies in Hinglish. Hinglish double questions are now trimmed to one.
+
+## Session 2026-10-30
+- Switched production to gladucamepr: INSTAGRAM_ACCESS_TOKEN, INSTAGRAM_HANDLE=gladucamepr and CRM_PASSWORD updated on Vercel Production (and local .env, gitignored). Redeployed with the Vercel CLI; /api/health ok and /api/crm-login accepts the new password.
+- Client guide for the Lead Inbox: client-guide/Glad_U_Came_Lead_Inbox_Guide.docx (built by client-guide/build_guide.py from screenshots of a local sample-data copy). Not committed: it contains the CRM password.
+- Known gap: public/crm-assets/crm.css has no toolbar or board styles, so the search/filter row is stacked full width and the Board view renders unstyled below the list. The guide leaves Board out.
+- Next: confirm the Instagram webhook still delivers with the new token, then decide whether to fix the CSS.
+
+## Session 2026-10-30 (admin panel)
+- Clarified: the client-facing panel is the admin panel (/admin, "Lead Desk"), not the /crm Lead Inbox. ADMIN_PASSWORD set to the client password on Vercel Production and local .env; redeployed; /api/login accepts it. CRM_PASSWORD was set to the same value earlier, so /crm and /admin now share one password.
+- Admin guide: client-guide/Glad_U_Came_Admin_Panel_Guide.docx (build_admin_guide.py + aimg/). The earlier Lead Inbox guide is kept but no longer the main one. Neither is committed because they contain the password.
+
+## Session 2026-10-30 (thread history)
+- Problem: the assistant replied to creators the team had already been negotiating with (it only saw messages from the first webhook on) and quoted client PR prices to creators. Paused all 9 leads and unsubscribed the Instagram webhook while fixing.
+- Fix (core/instagram.js): fetchThread() reads the earlier chat from /me/conversations; importHistory() loads it in order before a new person's first message is stored; handleEcho() records messages the team sends from the Instagram app. TEAM_THREAD_MODE env: 'pause' (default, assistant stays out of chats the team has spoken in, team alerted) or 'assist' (assistant carries on with the history as context).
+- Tests added in test/instagram.test.js (169 pass). Deployed to prod; webhook still unsubscribed until Sanidhya says to re-enable (POST /api/instagram/subscribe).
+- Ideas not done: one-off history load for the 9 existing leads, creator-aware routing from the history, a CRM badge for team chats.

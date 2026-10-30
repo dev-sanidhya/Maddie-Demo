@@ -225,6 +225,83 @@ class Instagram {
     try { return await this.api('GET', `/${igsid}`, { query: { fields: 'name,username' } }, { retries: 1 }); } catch { return {}; }
   }
 
+  // The earlier messages of one chat (newest 40, oldest first), so the assistant knows what the studio's own team
+  // already said. Each item is { mid, at, fromUs, text }. Returns [] if Instagram will not say.
+  async fetchThread(igsid, limit = 40) {
+    try {
+      const list = await this.api('GET', '/me/conversations', { query: { platform: 'instagram', user_id: String(igsid), fields: 'id' } }, { retries: 1 });
+      const cid = list && list.data && list.data[0] && list.data[0].id;
+      if (!cid) return [];
+      const conv = await this.api('GET', `/${cid}`, { query: { fields: `messages.limit(${limit}){id,created_time,from,message,attachments}` } }, { retries: 1 });
+      const ours = new Set([this.me && this.me.user_id, this.me && this.me.id, this.cfg.accountId].filter(Boolean).map(String));
+      const handle = String(this.handle || '').toLowerCase();
+      return (((conv && conv.messages && conv.messages.data) || []).map((m) => {
+        const from = m.from || {};
+        const fromUs = ours.has(String(from.id)) || (!!handle && String(from.username || '').toLowerCase() === handle);
+        const hasMedia = m.attachments && ((m.attachments.data && m.attachments.data.length) || (Array.isArray(m.attachments) && m.attachments.length));
+        return { mid: m.id, at: Date.parse(m.created_time) || Date.now(), fromUs, text: String(m.message || '').trim() || (hasMedia ? '[sent a photo or link]' : '') };
+      }).filter((m) => m.text)).sort((a, b) => a.at - b.at);
+    } catch (e) {
+      this.log.warn(`[instagram] could not read earlier messages: ${e.message}`);
+      return [];
+    }
+  }
+
+  // A person writes for the first time since the assistant was switched on, but the chat may already have a history
+  // (the studio's own outreach, a negotiation in progress). Load it BEFORE their new message is stored, so the
+  // transcript is in order and the assistant does not greet or interrogate someone mid-conversation.
+  async importHistory(chatId, senderId, prof, ev) {
+    if (await this.store.getLeadByChat(chatId)) return;
+    const mid = ev.message && ev.message.mid;
+    const text = ev.message && typeof ev.message.text === 'string' ? ev.message.text.trim() : '';
+    const recent = Date.now() - 2 * 60000;
+    const thread = (await this.fetchThread(senderId)).filter((m) => m.mid !== mid && !(m.text === text && !m.fromUs && m.at > recent));
+    if (!thread.length) return;
+    const { lead } = await this.engine.bindChat(chatId, prof, { channel: this.channel, source: this.channel });
+    if (await this.store.countMessages(lead.id)) return; // another webhook got here first
+    for (const m of thread) {
+      const id = await this.store.addMessage({
+        lead_id: lead.id, direction: m.fromUs ? 'out' : 'in', role: m.fromUs ? 'admin' : 'user', text: m.text.slice(0, 4000),
+        ext_id: m.mid || null, status: m.fromUs ? 'sent' : 'received', processed: true, created_at: m.at,
+      }).catch(() => null);
+      if (!id) continue;
+    }
+    const lastIn = [...thread].reverse().find((m) => !m.fromUs);
+    const lastOut = [...thread].reverse().find((m) => m.fromUs);
+    const team = thread.some((m) => m.fromUs);
+    const meta = { ...lead.meta, history_imported: thread.length, ...(team ? { team_thread: true } : {}) };
+    await this.store.updateLead(lead.id, { meta, last_inbound_at: lastIn ? lastIn.at : null, last_outbound_at: lastOut ? lastOut.at : null });
+    await this.store.addEvent(lead.id, 'history_imported', { messages: thread.length, team });
+    if (team && this.cfg.teamThreadMode !== 'assist') {
+      await this.store.updateLead(lead.id, { ai_paused: 1 });
+      await this.store.addEvent(lead.id, 'ai_paused', { by: 'team_thread', auto: true });
+    }
+  }
+
+  // A message the studio's team sent from the Instagram app or phone. The assistant never saw it, so keep it in the
+  // transcript, and (default) stand down: a person is already talking to them.
+  async handleEcho(ev) {
+    const customerId = ev.recipient && String(ev.recipient.id);
+    const mid = ev.message.mid || null;
+    const text = typeof ev.message.text === 'string' ? ev.message.text.trim() : '';
+    if (!customerId || !text) return;
+    const lead = await this.store.getLeadByChat(`${this.prefix}${customerId}`);
+    if (!lead) return; // no chat with us yet: importHistory reads it if they ever write back
+    if (mid && (await this.store.get('SELECT id FROM messages WHERE ext_id=?', mid))) return;
+    // The assistant's own replies echo back too, sometimes before their id is saved: match by text.
+    const mine = await this.store.all("SELECT text FROM messages WHERE lead_id=? AND direction='out' ORDER BY id DESC LIMIT 6", lead.id);
+    if (mine.some((r) => r.text === text || (r.text.length > 40 && r.text.startsWith(text.slice(0, 40))))) return;
+    await this.store.addMessage({ lead_id: lead.id, direction: 'out', role: 'admin', text: text.slice(0, 4000), ext_id: mid, status: 'sent', processed: true });
+    const meta = { ...lead.meta, team_thread: true, team_last_at: Date.now() };
+    await this.store.updateLead(lead.id, { meta, last_outbound_at: Date.now() });
+    await this.store.addEvent(lead.id, 'team_message', {});
+    if (!lead.ai_paused && this.cfg.teamThreadMode !== 'assist') {
+      await this.store.updateLead(lead.id, { ai_paused: 1 });
+      await this.store.addEvent(lead.id, 'ai_paused', { by: 'team_message', auto: true });
+    }
+    this.engine.changed('lead', lead.id);
+  }
+
   // ---------- sending ----------
   igsid(lead) { return String(lead.chat_id).slice(this.prefix.length); }
 
@@ -328,6 +405,7 @@ class Instagram {
 
   async handleEvent(ev, igId) {
     const senderId = ev.sender && String(ev.sender.id);
+    if (senderId && senderId === igId && ev.message && ev.message.is_echo) return this.handleEcho(ev); // the team wrote from the app
     if (!senderId || senderId === igId) return; // our own account
     if (!ev.message && !ev.postback && !ev.referral) return; // read receipts, deliveries and reactions need no answer
     const chatId = `${this.prefix}${senderId}`;
@@ -339,6 +417,7 @@ class Instagram {
     const prof = { first_name: (profile.name || '').split(/\s+/)[0] || null, username: profile.username || null };
 
     if (ref) await this.engine.linkReferral(chatId, ref, prof, this.channel);
+    if (!known && !ref && !(ev.message && ev.message.is_echo)) await this.importHistory(chatId, senderId, prof, ev).catch((e) => this.log.warn(`[instagram] history import failed: ${e.message}`));
 
     if (ev.message) {
       if (ev.message.is_echo) return; // messages sent from our own account/app
