@@ -528,6 +528,7 @@ function createHandler(app) {
   // Instagram admin actions. Graph API errors become 400s (a Graph 401 must not look like a lost admin session).
   const ig = async (fn) => { try { return await fn(); } catch (e) { throw new HttpError(400, e.message || 'Instagram request failed'); } };
   route('POST', '/api/instagram/subscribe', async (req, res) => { send(res, 200, { ok: true, result: await ig(() => instagram.subscribe()) }); });
+  route('POST', '/api/leads/:id/reload-history', async (req, res, { params }) => { send(res, 200, { ok: true, ...(await ig(() => instagram.reloadHistory(Number(params.id)))) }); });
   route('POST', '/api/instagram/refresh-token', async (req, res) => { send(res, 200, { ok: true, result: await ig(() => instagram.refreshToken({ force: true })) }); });
   route('POST', '/api/instagram/ice-breakers', async (req, res) => {
     const b = await readBody(req);

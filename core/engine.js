@@ -952,8 +952,10 @@ class Engine extends EventEmitter {
         const lead = await this.store.getLead(m.lead_id);
         if (!lead) return;
         try {
-          await this.transportFor(lead).send(lead, m.text, { role: m.role });
+          const sentId = await this.transportFor(lead).send(lead, m.text, { role: m.role });
           await this.store.run("UPDATE messages SET status='sent', error=NULL WHERE id=?", messageId);
+          // remember the platform's id for our own message, so an echo of it is never mistaken for a person
+          if (typeof sentId === 'string' && sentId) await this.store.run('UPDATE messages SET ext_id=? WHERE id=? AND ext_id IS NULL', sentId, messageId).catch(() => {});
           await this.store.updateLead(lead.id, { last_outbound_at: Date.now() });
           this.changed('message', lead.id);
           return;

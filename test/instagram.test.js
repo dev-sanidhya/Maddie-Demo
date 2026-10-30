@@ -352,3 +352,34 @@ test('LAST LOOK: a team member answers between the customer message and the assi
   const texts = (await app.store.all('SELECT text FROM messages WHERE lead_id=? ORDER BY id', lead.id)).map((r) => r.text);
   assert.ok(texts.some((t) => /Sam here/.test(t)), "the team's message is in the transcript");
 });
+
+test('RELOAD: an existing chat is rebuilt from Instagram, the assistant\'s old replies stay the assistant\'s, the team\'s are the team\'s', async () => {
+  const thread = [];
+  const { app } = await build({ thread });
+  await app.instagram.handleWebhook(msgEvent('u60', 'Hi, I need a full home redesign', 'm_r1'));
+  const lead = await app.store.getLeadByChat('ig:u60');
+  await settle(app, lead.id);
+  const botReply = (await app.store.all("SELECT text FROM messages WHERE lead_id=? AND direction='out' ORDER BY id DESC LIMIT 1", lead.id))[0].text;
+  await app.store.updateLead(lead.id, { ai_paused: 1 });
+  const at = (n) => new Date(Date.now() - n * 60000).toISOString();
+  thread.push(
+    { id: 'h1', created_time: at(3000), from: { id: IG_ID, username: 'brandstudio' }, message: 'Hi pls see your dm! we have a paid collab' },
+    { id: 'h2', created_time: at(2900), from: { id: 'u60', username: 'x' }, message: 'Hi, I need a full home redesign' },
+    { id: 'h3', created_time: at(2890), from: { id: IG_ID, username: 'brandstudio' }, message: botReply },
+    { id: 'h4', created_time: at(10), from: { id: IG_ID, username: 'brandstudio' }, message: 'Sam here, taking over' },
+  );
+  const r = await app.instagram.reloadHistory(lead.id);
+  assert.strictEqual(r.reloaded, true);
+  const rows = await app.store.all('SELECT direction, role, text FROM messages WHERE lead_id=? ORDER BY id', lead.id);
+  assert.deepStrictEqual(rows.map((x) => `${x.direction}:${x.role}`), ['out:admin', 'in:user', 'out:assistant', 'out:admin']);
+  assert.ok((await app.store.getLead(lead.id)).ai_paused, 'a reload never un-pauses a chat');
+});
+
+test('the id of the assistant\'s own message is remembered, so its echo is never taken for a person', async () => {
+  const { app } = await build();
+  await app.instagram.handleWebhook(msgEvent('u61', 'Hi, I need a full home redesign', 'm_s1'));
+  const lead = await app.store.getLeadByChat('ig:u61');
+  await settle(app, lead.id);
+  const out = (await app.store.all("SELECT ext_id FROM messages WHERE lead_id=? AND direction='out'", lead.id))[0];
+  assert.strictEqual(out.ext_id, 'm_out');
+});

@@ -278,6 +278,35 @@ class Instagram {
     }
   }
 
+  // Rebuilds the transcript of a chat that already exists from Instagram's own copy of the conversation (for chats
+  // started before history was loaded). The assistant's old replies are kept as the assistant's, anything else from
+  // our account is the team's. The chat's pause is left exactly as it is.
+  async reloadHistory(leadId) {
+    const lead = await this.store.getLead(leadId);
+    if (!lead || !lead.chat_id || !String(lead.chat_id).startsWith(this.prefix)) throw new InstagramError('Not an Instagram chat', { permanent: true });
+    const thread = await this.fetchThread(this.igsid(lead), 100);
+    if (!thread.length) return { reloaded: false, reason: 'Instagram returned no messages' };
+    if (Number((await this.store.get('SELECT COUNT(*) c FROM media WHERE lead_id=? AND removed_at IS NULL', lead.id)).c)) return { reloaded: false, reason: 'This chat has photos, which a reload would detach' };
+    const old = await this.store.all('SELECT direction, role, text, ext_id FROM messages WHERE lead_id=?', lead.id);
+    const botTexts = old.filter((r) => r.direction === 'out' && r.role === 'assistant').map((r) => r.text);
+    const isBot = (m) => m.fromUs && botTexts.some((t) => t === m.text || t.includes(m.text) || (t.length > 40 && m.text.startsWith(t.slice(0, 40))));
+    await this.store.tx(async (t) => {
+      await t.run('DELETE FROM messages WHERE lead_id=?', lead.id);
+      for (const m of thread) {
+        const bot = isBot(m);
+        await t.addMessage({ lead_id: lead.id, direction: m.fromUs ? 'out' : 'in', role: m.fromUs ? (bot ? 'assistant' : 'admin') : 'user', text: m.text.slice(0, 4000), ext_id: m.mid || null, status: m.fromUs ? 'sent' : 'received', processed: true, created_at: m.at });
+      }
+    });
+    const lastIn = [...thread].reverse().find((m) => !m.fromUs);
+    const lastOut = [...thread].reverse().find((m) => m.fromUs);
+    const team = thread.some((m) => m.fromUs && !isBot(m));
+    const meta = { ...lead.meta, history_imported: thread.length, ...(team ? { team_thread: true } : {}) };
+    await this.store.updateLead(lead.id, { meta, summary: '', summary_upto: 0, last_inbound_at: lastIn ? lastIn.at : lead.last_inbound_at, last_outbound_at: lastOut ? lastOut.at : lead.last_outbound_at });
+    await this.store.addEvent(lead.id, 'history_reloaded', { messages: thread.length, was: old.length, team });
+    this.engine.changed('lead', lead.id);
+    return { reloaded: true, messages: thread.length, was: old.length, team };
+  }
+
   // A message the studio's team sent from the Instagram app or phone. The assistant never saw it, so keep it in the
   // transcript, and (default) stand down: a person is already talking to them.
   async handleEcho(ev) {
@@ -315,10 +344,10 @@ class Instagram {
 
   // Last look before the assistant speaks: has a person on the team written in this chat since we last checked?
   // This does not depend on the echo webhook arriving, so it is the safety net. Any unknown message from our own
-  // account in the last half hour is a human (the assistant's own sends are matched by id or by their text).
-  async humanActive(lead) {
+  // account in the last week is a human (the assistant's own sends are matched by id or by their text).
+  async humanActive(lead, { windowMs = 7 * 86400000, dryRun = false } = {}) {
     const thread = await this.fetchThread(this.igsid(lead), 8);
-    const since = Date.now() - 30 * 60000;
+    const since = Date.now() - windowMs;
     const mine = await this.store.all("SELECT text, ext_id FROM messages WHERE lead_id=? AND direction='out' ORDER BY id DESC LIMIT 12", lead.id);
     const known = new Set(mine.map((r) => r.ext_id).filter(Boolean));
     const found = [];
@@ -328,6 +357,7 @@ class Instagram {
       found.push(m);
     }
     if (!found.length) return false;
+    if (dryRun) return found.map((m) => ({ at: m.at, text: m.text.slice(0, 80) }));
     for (const m of found) {
       if (await this.store.get('SELECT id FROM messages WHERE ext_id=?', m.mid)) continue;
       const id = await this.store.addMessage({ lead_id: lead.id, direction: 'out', role: 'admin', text: m.text.slice(0, 4000), ext_id: m.mid, status: 'sent', processed: true, created_at: m.at }).catch(() => null);
