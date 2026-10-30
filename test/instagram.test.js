@@ -460,7 +460,9 @@ test('CONCIERGE: a reply that states a price nobody gave it is never sent; the c
   await app.instagram.handleWebhook(msgEvent('u83', 'what is your fee', 'm_z3'));
   const lead = await app.store.getLeadByChat('ig:u83');
   await settle(app, lead.id);
-  assert.strictEqual(sends(graph).length, 0);
+  const sentTexts = sends(graph).map((g) => g.body.message.text);
+  assert.ok(!sentTexts.some((t) => /85,000/.test(t)), 'the invented price never went out');
+  assert.deepStrictEqual(sentTexts, ['Thanks, noted. I have flagged this for the team.'], 'only the safe holding line was sent');
   assert.strictEqual(llm.seen.length, 3, 'it was asked to try again twice, then gave up');
 });
 
@@ -514,7 +516,8 @@ test('CONCIERGE: an email address or link the model made up is never sent; one i
   await app.instagram.handleWebhook(msgEvent('u93', 'what is your email', 'm_e1'));
   const lead = await app.store.getLeadByChat('ig:u93');
   await settle(app, lead.id);
-  assert.strictEqual(sends(graph).length, 0, 'the invented address never went out');
+  assert.ok(!sends(graph).some((g) => /madeup/.test(g.body.message.text)), 'the invented address never went out');
+  assert.strictEqual(sends(graph).length, 1, 'only the safe holding line was sent');
   assert.strictEqual(llm.seen.length, 3, 'it was asked to try again twice before giving up');
   const { checkReply } = require('../core/concierge');
   assert.strictEqual(checkReply('Write to hello@real.com', 'our email is hello@real.com'), 'Write to hello@real.com');
@@ -610,4 +613,59 @@ test('CONCIERGE: it never repeats its own previous message word for word', () =>
   const prev = 'Got it, we will have the team review your commercial details and get back to you shortly.';
   assert.strictEqual(checkReply('Got it, we will have the team review your commercial details and get back to you shortly.', 'x', { previous: prev }), '');
   assert.notStrictEqual(checkReply('Thanks, noted. Anything else you want the team to know?', 'x', { previous: prev }), '');
+});
+
+test('CONCIERGE guards read curly apostrophes, and catch the overpromises found in the real-chat replays', () => {
+  const { checkReply } = require('../core/concierge');
+  const g = 'chat';
+  const bad = [
+    'Sure, we’ll arrange a call. Could you share a few time slots?',
+    'Got it, we’ll check for paid opportunities and get back to you soon.',
+    'We’ll have the team review your details and get back with paid collaboration options.',
+    'Sure, we’ll send over the reference story video shortly.',
+    'We’ll share the reference video and follow up on the details.',
+    'Got it, we’ll have the team resend the contact details to your email right away.',
+    'Enjoy your break and we’ll touch base after 4 Nov.',
+    'Got it, I’ll pass this to the team and they’ll get back to you about the payout details.',
+  ];
+  for (const b of bad) assert.strictEqual(checkReply(b, g), '', `should be rejected: ${b}`);
+  const ok = ['Got it, I’ll pass this to the team and they’ll get back to you shortly.', 'Thanks for sharing your rate, I’ll pass it to the team.', 'Sure, I’ll ask the team to confirm a Monday 11 am slot with you.', 'You’re welcome!'];
+  for (const o of ok) assert.notStrictEqual(checkReply(o, g), '', `should be allowed: ${o}`);
+});
+
+test('CONCIERGE: it does not ask for the same thing again when the customer has not given it, even in different words', () => {
+  const { checkReply } = require('../core/concierge');
+  const recent = ['Could you share your Instagram handle, city and the content niche you focus on?'];
+  assert.strictEqual(checkReply('Could you also share your Instagram handle and the niche you create content in?', 'x', { recent }), '');
+  assert.strictEqual(checkReply('Could you share your Instagram handle so we can check your profile?', 'x', { recent }), '');
+  assert.notStrictEqual(checkReply('Got it, thanks. The team will review and get back to you here.', 'x', { recent }), '');
+  assert.notStrictEqual(checkReply('Which brand are you reaching out for?', 'x', { recent }), '');
+});
+
+test('CONCIERGE: contact details may only come from the approved business facts, never from the chat (the customer\'s own email is not ours)', () => {
+  const { checkReply } = require('../core/concierge');
+  const chat = 'customer wrote: my email is itsme@rjaditi.com and my number is +91 8591610679';
+  const facts = 'Business facts: reach the studio at hello@approved-agency.com';
+  assert.strictEqual(checkReply('Sure, you can reach us at itsme@rjaditi.com.', chat + facts, { contactGrounding: facts }), '');
+  assert.strictEqual(checkReply('You can save Jyoti\'s contact: Phone 8591610679.', chat + facts, { contactGrounding: facts }), '');
+  assert.strictEqual(checkReply('You can reach us at hello@approved-agency.com.', chat + facts, { contactGrounding: facts }), 'You can reach us at hello@approved-agency.com.');
+  assert.notStrictEqual(checkReply('Thanks, the team will reach out to you there.', chat + facts, { contactGrounding: facts }), '');
+});
+
+test('CONCIERGE: the last overpromises from the real-chat replays are blocked', () => {
+  const { checkReply } = require('../core/concierge');
+  for (const b of ['Sure, we can set up a call.', 'Noted, 4 pm works for us.', 'We’ll review your rate and get back to you after the 4th.', 'Got it, we’ll keep you in mind for paid collaborations only.', 'Sure, we’ll get the story reference over to you shortly.', 'We’ll consider it when matching you with campaigns.']) assert.strictEqual(checkReply(b, 'x'), '', `should be rejected: ${b}`);
+  for (const o of ['Sure, I will ask the team to confirm a call with you.', 'Got it, we’ll get back to you shortly.', 'Thanks, noted. I have flagged this for the team.']) assert.notStrictEqual(checkReply(o, 'x'), '', `should be allowed: ${o}`);
+});
+
+test('CONCIERGE: when every attempt is rejected the customer still gets a short holding line (a person is flagged), but nothing when they only said ok', async () => {
+  const llm = conciergeLlm({ action: 'reply', reply: 'Sure, we can set up a call and we’ll send you the brief.', needs_team: false, why: 'x' });
+  const { app, graph } = await build({ thread: teamThread(), llm, agentMode: 'concierge' });
+  await app.instagram.handleWebhook(msgEvent('u99', 'Is it possible to get on a call with someone from the team?', 'm_h1'));
+  const lead = await app.store.getLeadByChat('ig:u99');
+  await settle(app, lead.id);
+  assert.deepStrictEqual(sends(graph).map((g) => g.body.message.text), ['Thanks, noted. I have flagged this for the team.']);
+  await app.instagram.handleWebhook(msgEvent('u99', 'ok', 'm_h2'));
+  await settle(app, lead.id);
+  assert.strictEqual(sends(graph).length, 1, 'a bare ok gets nothing');
 });
