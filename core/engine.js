@@ -33,6 +33,7 @@ const MIN_OVERFLOW = 6; // summarise once this many messages have scrolled out o
 const MAX_ASKS_PER_FIELD = 3;
 const maxAsks = () => MAX_ASKS_PER_FIELD;
 const LEASE_MS = 75000;
+const MAX_SETTLE_MS = Number(process.env.DEBOUNCE_MAX_MS) || 25000;
 const IN_CLAUSE = (ids) => ids.map(() => '?').join(',');
 
 class Engine extends EventEmitter {
@@ -251,11 +252,13 @@ class Engine extends EventEmitter {
       try {
         await this.settings.refresh();
         for (let guard = 0; guard < 8; guard++) {
-          // Debounce: let a burst of messages settle into one turn.
-          for (let i = 0; i < 4 && this.debounceMs; i++) {
+          // Debounce: let a burst of messages settle into one turn. People often send one thought as ten short
+          // messages, so wait until they have been quiet for debounceMs (up to MAX_SETTLE_MS, so a very long burst still gets answered).
+          const settleUntil = Date.now() + MAX_SETTLE_MS;
+          while (this.debounceMs && Date.now() < settleUntil) {
             const lead = await this.store.getLead(leadId);
             if (!lead || lead.channel === 'sim' || !lead.last_inbound_at || Date.now() - lead.last_inbound_at >= this.debounceMs) break;
-            await sleep(this.debounceMs - (Date.now() - lead.last_inbound_at) + 20);
+            await sleep(Math.min(this.debounceMs - (Date.now() - lead.last_inbound_at) + 20, Math.max(50, settleUntil - Date.now())));
           }
           const rows = await this.store.all("SELECT * FROM messages WHERE lead_id=? AND direction='in' AND processed=0 ORDER BY id", leadId);
           if (!rows.length) break;
@@ -301,6 +304,11 @@ class Engine extends EventEmitter {
       return;
     }
 
+    // Someone is still typing: a newer message is already waiting. Do not spend an AI call on a half-said thought;
+    // the next pass picks up everything they have said so far and answers it ONCE.
+    const newerWaiting = () => this.store.get("SELECT id FROM messages WHERE lead_id=? AND direction='in' AND processed=0 AND id>? LIMIT 1", leadId, Math.max(...rowIds));
+    if (allowDefer && lead.channel !== 'sim' && await newerWaiting()) return;
+
     const stopTyping = this.keepTyping(lead);
     try {
       this.stats.turns++;
@@ -343,7 +351,8 @@ class Engine extends EventEmitter {
       lead = decision.lead;
       lead = await this.calendarStep(lead, decision, applied, settings);
 
-      // 3. Compose.
+      // 3. Compose. (Check again first: the extra message may have landed while the facts were being read.)
+      if (allowDefer && lead.channel !== 'sim' && await newerWaiting()) { await this.store.addEvent(lead.id, 'reply_deferred', { reason: 'newer_message_before_compose' }); return; }
       const info = {};
       const reply = await this.compose(lead, decision.directive, settings, history.concat(rows), info);
       if (info.failed) aiFailed = true;
@@ -949,6 +958,12 @@ class Engine extends EventEmitter {
           this.changed('message', lead.id);
           return;
         } catch (e) {
+          if (e.heldBack) { // a person on the team is already answering this chat: the assistant's reply is dropped, not sent
+            await this.store.run('DELETE FROM messages WHERE id=?', messageId);
+            await this.store.addEvent(lead.id, 'reply_held_back', { reason: e.message });
+            this.changed('message', lead.id);
+            return;
+          }
           this.stats.sendFailures++;
           const attempts = m.attempts + 1;
           const permanent = e.permanent === true;

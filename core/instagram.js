@@ -313,7 +313,39 @@ class Instagram {
     };
   }
 
+  // Last look before the assistant speaks: has a person on the team written in this chat since we last checked?
+  // This does not depend on the echo webhook arriving, so it is the safety net. Any unknown message from our own
+  // account in the last half hour is a human (the assistant's own sends are matched by id or by their text).
+  async humanActive(lead) {
+    const thread = await this.fetchThread(this.igsid(lead), 8);
+    const since = Date.now() - 30 * 60000;
+    const mine = await this.store.all("SELECT text, ext_id FROM messages WHERE lead_id=? AND direction='out' ORDER BY id DESC LIMIT 12", lead.id);
+    const known = new Set(mine.map((r) => r.ext_id).filter(Boolean));
+    const found = [];
+    for (const m of thread) {
+      if (!m.fromUs || m.at < since || known.has(m.mid)) continue;
+      if (mine.some((r) => r.text.includes(m.text) || (r.text.length > 40 && m.text.startsWith(r.text.slice(0, 40))))) continue;
+      found.push(m);
+    }
+    if (!found.length) return false;
+    for (const m of found) {
+      if (await this.store.get('SELECT id FROM messages WHERE ext_id=?', m.mid)) continue;
+      const id = await this.store.addMessage({ lead_id: lead.id, direction: 'out', role: 'admin', text: m.text.slice(0, 4000), ext_id: m.mid, status: 'sent', processed: true, created_at: m.at }).catch(() => null);
+      if (!id) continue;
+    }
+    const fresh = await this.store.getLead(lead.id);
+    await this.store.updateLead(lead.id, { ai_paused: 1, last_outbound_at: Date.now(), meta: { ...fresh.meta, team_thread: true, team_last_at: Date.now() } });
+    await this.store.addEvent(lead.id, 'ai_paused', { by: 'team_message', auto: true, via: 'last_look' });
+    this.engine.changed('lead', lead.id);
+    return true;
+  }
+
   async sendText(lead, text, { role } = {}) {
+    if (role !== 'admin' && this.cfg.teamThreadMode !== 'assist' && (await this.humanActive(lead).catch(() => false))) {
+      const e = new InstagramError('A team member is already replying in this chat, so the assistant held back.', { permanent: true });
+      e.heldBack = true;
+      throw e;
+    }
     const age = Date.now() - (lead.last_inbound_at || 0);
     let extra = {};
     if (age > WINDOW_MS) {
