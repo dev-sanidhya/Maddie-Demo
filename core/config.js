@@ -46,6 +46,10 @@ module.exports = {
   adminPassword: env.ADMIN_PASSWORD || 'demo',
   intakeSecret: env.INTAKE_SECRET || 'change-me',
   demoMode: String(env.DEMO_MODE || 'true') !== 'false',
+  // 'concierge': on Instagram the assistant reads the whole chat and decides for itself (reply, stay quiet, hand over) instead of following the qualification script.
+  agentMode: env.AGENT_MODE === 'concierge' ? 'concierge' : 'script',
+  // 1: the concierge writes its reply but does NOT send it; the draft is kept on the lead's history for the team to read.
+  agentShadow: env.AGENT_SHADOW === '1',
   telegramToken: env.TELEGRAM_BOT_TOKEN || '',
   // Instagram messaging (Instagram API with Instagram Login). Needs a Professional account.
   instagram: {

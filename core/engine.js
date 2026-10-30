@@ -32,6 +32,8 @@ const HISTORY_WINDOW = 14;
 const MIN_OVERFLOW = 6; // summarise once this many messages have scrolled out of the live window
 const MAX_ASKS_PER_FIELD = 3;
 const maxAsks = () => MAX_ASKS_PER_FIELD;
+const { Concierge } = require('./concierge');
+const { chatKey } = require('./chatkey');
 const LEASE_MS = 75000;
 const MAX_SETTLE_MS = Number(process.env.DEBOUNCE_MAX_MS) || 25000;
 const IN_CLAUSE = (ids) => ids.map(() => '?').join(',');
@@ -54,6 +56,7 @@ class Engine extends EventEmitter {
     this.photos = null; // set by createApp: Supabase Storage for customers' photos
     this.pending = new Set();
     this.defer = null; // set by the serverless entry: keeps the function alive until background work ends
+    this.concierge = new Concierge({ llm: agent.llm, store, log });
     this.stats = { turns: 0, llmFallbacks: 0, sendFailures: 0 };
   }
 
@@ -325,6 +328,16 @@ class Engine extends EventEmitter {
       const history = await this.store.contextMessages(leadId, { beforeId: rowIds[0], summaryUpto: lead.summary_upto });
       const lastAsked = lead.meta.last_asked || null;
 
+      // The concierge reads THIS chat only (its own rows, by lead id) and starts writing while the facts are being read for the CRM,
+      // so the customer waits for the slower of the two instead of both.
+      const conciergeOn = this.config.agentMode === 'concierge' && lead.channel === 'instagram';
+      let conciergeRows = null;
+      let conciergeP = null;
+      if (conciergeOn) {
+        conciergeRows = (await this.store.all('SELECT * FROM messages WHERE lead_id=? AND id<? ORDER BY id DESC LIMIT 120', leadId, rowIds[0])).reverse().concat(rows);
+        conciergeP = this.concierge.respond({ lead, rows: conciergeRows, settings }).catch((e) => ({ action: 'handoff', text: '', needsTeam: true, why: `AI error: ${String(e.message).slice(0, 100)}`, failed: true, error: String(e.message).slice(0, 200) }));
+      }
+
       // 1. Extract facts (LLM), tolerate failure.
       let facts = null;
       let aiFailed = false;
@@ -357,15 +370,30 @@ class Engine extends EventEmitter {
       // Instagram leads speak first, so the first turn is the greeting: it welcomes them
       // by name and asks the first question in one message.
       const firstContact = !history.some((m) => m.direction === 'out');
-      const decision = this.decide(lead, settings, { changed: applied.changed, greeting: firstContact });
+      let decision = this.decide(lead, settings, { changed: applied.changed, greeting: firstContact });
       lead = decision.lead;
       lead = await this.calendarStep(lead, decision, applied, settings);
 
       // 3. Compose. (Check again first: the extra message may have landed while the facts were being read.)
       if (allowDefer && lead.channel !== 'sim' && await newerWaiting()) { await this.store.addEvent(lead.id, 'reply_deferred', { reason: 'newer_message_before_compose' }); return; }
       const info = {};
-      const reply = await this.compose(lead, decision.directive, settings, history.concat(rows), info);
-      if (info.failed) aiFailed = true;
+      let reply;
+      if (conciergeOn) {
+        // The assistant read the whole chat and decided for itself. The facts above still feed the CRM; they no longer dictate the words.
+        const out = await conciergeP;
+        if (out.error) await this.store.addEvent(lead.id, 'llm_error', { step: 'concierge', error: out.error });
+        if (out.failed) aiFailed = true;
+        const key = chatKey(this.config.instagram.accountId || '', String(lead.chat_id).replace(/^ig:/, ''));
+        const meta2 = { ...lead.meta, concierge: { at: Date.now(), action: out.action, why: out.why, needs_team: !!out.needsTeam } };
+        await this.store.updateLead(lead.id, { meta: meta2 });
+        lead = { ...lead, meta: meta2 };
+        await this.store.addEvent(lead.id, 'concierge', { action: out.action, why: out.why, needs_team: !!out.needsTeam, chat: key, read_msgs: conciergeRows.length, ...(this.config.agentShadow && out.text ? { draft: out.text } : {}) });
+        reply = this.config.agentShadow ? null : (out.text || null); // shadow mode: the draft is kept on the history, nothing is sent
+        decision = { ...decision, directive: reply ? { type: 'CONCIERGE' } : null };
+      } else {
+        reply = await this.compose(lead, decision.directive, settings, history.concat(rows), info);
+        if (info.failed) aiFailed = true;
+      }
 
       // Another message arrived while the reply was being written: drop this reply (nothing is sent or marked
       // as handled) so the next pass answers everything they said in ONE message, the way a person would.
@@ -733,6 +761,8 @@ class Engine extends EventEmitter {
         const settings = this.settings.get();
         const lead = await this.store.getLead(leadId);
         if (!lead || lead.ai_paused || lead.opted_out || !lead.chat_id) return null;
+        // The concierge never sends scripted nudges, drips or reminders: it only speaks when the customer has just written.
+        if (this.config.agentMode === 'concierge' && lead.channel === 'instagram') return null;
         if (claim) {
           // claim carries the state the scheduler planned from, so a second run holding the same plan loses.
           const won = await this.store.run('UPDATE leads SET fu_step=fu_step+1 WHERE id=? AND fu_step=? AND COALESCE(last_inbound_at,0)=?', leadId, claim.fu_step, claim.last_inbound_at);

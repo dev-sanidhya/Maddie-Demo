@@ -77,6 +77,21 @@ CREATE INDEX IF NOT EXISTS idx_events_lead ON events(lead_id, id);
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 
+-- Every Instagram conversation on the account (the studio's own messages included), so the assistant can read a person's whole
+-- history and the team's own way of talking before it writes anything. msgs is a JSON array: [{mid, at, fromUs, text}], oldest first.
+CREATE TABLE IF NOT EXISTS ig_archive (
+  conv_id TEXT PRIMARY KEY,
+  chat_key TEXT,
+  igsid TEXT,
+  username TEXT,
+  last_at ${d.big},
+  n ${d.int} NOT NULL DEFAULT 0,
+  team_n ${d.int} NOT NULL DEFAULT 0,
+  msgs TEXT NOT NULL DEFAULT '[]',
+  synced_at ${d.big} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_archive_igsid ON ig_archive(igsid);
+
 CREATE TABLE IF NOT EXISTS designers (
   id ${d.pk},
   name TEXT NOT NULL,
@@ -249,6 +264,15 @@ class Store {
       fu_step: `${dialect.int} NOT NULL DEFAULT 0`, reminded_at: dialect.big, lock_until: dialect.big,
     };
     for (const [c, type] of Object.entries(add)) if (!cols.includes(c)) await this.d.exec(`ALTER TABLE leads ADD COLUMN ${c} ${type}`);
+    // The chat archive is addressed by a hash key per chat (see core/chatkey.js): add it to older databases and fill it in.
+    const acols = await this.d.tableColumns('ig_archive');
+    if (!acols.includes('chat_key')) await this.d.exec('ALTER TABLE ig_archive ADD COLUMN chat_key TEXT');
+    await this.d.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_archive_key ON ig_archive(chat_key)');
+    const keyless = await this.all('SELECT conv_id, igsid FROM ig_archive WHERE chat_key IS NULL AND igsid IS NOT NULL LIMIT 5000');
+    if (keyless.length && process.env.INSTAGRAM_ACCOUNT_ID) {
+      const { chatKey } = require('./chatkey');
+      for (const r of keyless) await this.run('UPDATE ig_archive SET chat_key=? WHERE conv_id=?', chatKey(process.env.INSTAGRAM_ACCOUNT_ID, r.igsid), r.conv_id).catch(() => {});
+    }
     const mcols = await this.d.tableColumns('messages');
     if (!mcols.includes('ext_id')) await this.d.exec('ALTER TABLE messages ADD COLUMN ext_id TEXT');
     if (!mcols.includes('claimed_at')) await this.d.exec(`ALTER TABLE messages ADD COLUMN claimed_at ${dialect.big}`);
@@ -271,6 +295,28 @@ class Store {
   get(sql, ...p) { return this.d.get(sql, ...p); }
   all(sql, ...p) { return this.d.all(sql, ...p); }
   isDuplicate(e) { return /UNIQUE|duplicate key/i.test(String(e && e.message)) || (e && e.code === '23505'); }
+
+  // ---- archive of every Instagram conversation ----
+  async archiveUpsert(c) {
+    const msgs = c.msgs || [];
+    await this.run(
+      'INSERT INTO ig_archive(conv_id,chat_key,igsid,username,last_at,n,team_n,msgs,synced_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(conv_id) DO UPDATE SET chat_key=excluded.chat_key, igsid=excluded.igsid, username=excluded.username, last_at=excluded.last_at, n=excluded.n, team_n=excluded.team_n, msgs=excluded.msgs, synced_at=excluded.synced_at',
+      c.conv_id, c.chat_key || null, c.igsid || null, c.username || null, c.last_at || 0, msgs.length, msgs.filter((m) => m.fromUs).length, JSON.stringify(msgs), Date.now(),
+    );
+  }
+  async archiveMeta() { return this.all('SELECT conv_id, last_at FROM ig_archive'); }
+  // One chat, by its key: a primary-key lookup. This is the only way the assistant reads the archive.
+  async archiveGet(chatKey) {
+    const r = await this.get('SELECT * FROM ig_archive WHERE chat_key=?', chatKey);
+    return r ? { ...r, msgs: JSON.parse(r.msgs) } : null;
+  }
+  async archiveByIgsid(igsid) {
+    const r = await this.get('SELECT * FROM ig_archive WHERE igsid=?', String(igsid));
+    return r ? { ...r, msgs: JSON.parse(r.msgs) } : null;
+  }
+  async archiveAll({ minTeam = 0, limit = 5000 } = {}) {
+    return (await this.all('SELECT conv_id, igsid, username, last_at, n, team_n, msgs FROM ig_archive WHERE team_n>=? ORDER BY last_at DESC LIMIT ?', minTeam, limit)).map((r) => ({ ...r, msgs: JSON.parse(r.msgs) }));
+  }
 
   // ---- kv / settings ----
   async kvGet(key, fallback = null) {

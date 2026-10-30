@@ -12,6 +12,7 @@
 // conversation to the lead created at form submit.
 
 const crypto = require('node:crypto');
+const { chatKey } = require('./chatkey');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const fingerprint = (token) => crypto.createHash('sha256').update(String(token || '')).digest('hex').slice(0, 16);
@@ -235,12 +236,16 @@ class Instagram {
       const conv = await this.api('GET', `/${cid}`, { query: { fields: `messages.limit(${limit}){id,created_time,from,message,attachments}` } }, { retries: 1 });
       const ours = new Set([this.me && this.me.user_id, this.me && this.me.id, this.cfg.accountId].filter(Boolean).map(String));
       const handle = String(this.handle || '').toLowerCase();
-      return (((conv && conv.messages && conv.messages.data) || []).map((m) => {
+      const out = (((conv && conv.messages && conv.messages.data) || []).map((m) => {
         const from = m.from || {};
         const fromUs = ours.has(String(from.id)) || (!!handle && String(from.username || '').toLowerCase() === handle);
         const hasMedia = m.attachments && ((m.attachments.data && m.attachments.data.length) || (Array.isArray(m.attachments) && m.attachments.length));
         return { mid: m.id, at: Date.parse(m.created_time) || Date.now(), fromUs, text: String(m.message || '').trim() || (hasMedia ? '[sent a photo or link]' : '') };
       }).filter((m) => m.text)).sort((a, b) => a.at - b.at);
+      // keep the archive current: one row per chat, addressed by its hash key (written through every time a chat is read)
+      const acct = (this.me && this.me.user_id) || this.cfg.accountId;
+      if (acct && out.length) await this.store.archiveUpsert({ conv_id: cid, chat_key: chatKey(acct, igsid), igsid: String(igsid), last_at: out[out.length - 1].at, msgs: out }).catch(() => {});
+      return out;
     } catch (e) {
       this.log.warn(`[instagram] could not read earlier messages: ${e.message}`);
       return [];

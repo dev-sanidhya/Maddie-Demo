@@ -28,21 +28,21 @@ function fakeLlm() {
   };
 }
 
-async function build({ thread = null, mode, debounceMs = 0, llm } = {}) {
+async function build({ thread = null, mode, debounceMs = 0, llm, agentMode, agentShadow } = {}) {
   const graph = [];
   const fetchImpl = async (url, init = {}) => {
     const body = init.body ? JSON.parse(init.body) : null;
     graph.push({ url, method: init.method, body, auth: init.headers && init.headers.Authorization });
     let data = { message_id: 'm_out', recipient_id: 'x' };
     if (/\/me\?/.test(url)) data = { user_id: IG_ID, username: 'brandstudio' };
-    else if (/\/me\/conversations/.test(url)) data = { data: thread ? [{ id: 'conv1' }] : [] };
-    else if (/\/conv1\?/.test(url)) data = { messages: { data: [...(thread || [])].reverse() } };
+    else if (/\/me\/conversations/.test(url)) data = { data: thread ? [{ id: `conv1:${new URL(url).searchParams.get('user_id')}` }] : [] };
+    else if (/\/conv1:[^?]*\?/.test(url)) data = { messages: { data: [...(thread || [])].reverse() } };
     else if (/\/\d+\?fields=name/.test(url)) data = { name: 'Riya Kapoor', username: 'riya.k' };
     return { ok: true, status: 200, json: async () => data };
   };
   const config = {
-    ...baseConfig, telegramToken: '', demoMode: true, adminPassword: 'pw', intakeSecret: 's3cret',
-    instagram: { accessToken: 'tok', appSecret: 'appsecret', verifyToken: 'verify-me', handle: 'brandstudio', apiVersion: 'v23.0', teamThreadMode: mode || 'pause' },
+    ...baseConfig, agentMode: agentMode || 'script', agentShadow: !!agentShadow, telegramToken: '', demoMode: true, adminPassword: 'pw', intakeSecret: 's3cret',
+    instagram: { accessToken: 'tok', appSecret: 'appsecret', verifyToken: 'verify-me', handle: 'brandstudio', apiVersion: 'v23.0', accountId: IG_ID },
   };
   const app = await createApp(config, { store: await Store.open({ file: ':memory:' }), llmOverride: llm || fakeLlm(), fetchImpl, debounceMs, log: silent });
   return { app, graph, config };
@@ -415,4 +415,118 @@ test('in a chat the team is part of, the assistant only sends a short safe ackno
   const { attentionFor } = require('../core/attention');
   const fresh = await app.store.getLead(lead.id);
   assert.ok(attentionFor(fresh, app.settings.get()).some((i) => i.kind === 'team_followup'), 'the team is told to follow up');
+});
+
+const conciergeLlm = (answer) => {
+  const base = fakeLlm();
+  const seen = [];
+  const fn = async (o) => {
+    if ((o.system || '').includes('You work the Instagram inbox')) { seen.push(o); return typeof answer === 'function' ? answer(o) : answer; }
+    return base(o);
+  };
+  fn.seen = seen;
+  return fn;
+};
+
+test('CONCIERGE: reads the whole chat (team messages included) and writes its own reply, no script question', async () => {
+  const llm = conciergeLlm({ action: 'reply', reply: 'Got it, thanks! The team will reach out to you there.', needs_team: false, why: 'acknowledged contact details' });
+  const { app, graph } = await build({ thread: teamThread(), llm, agentMode: 'concierge' });
+  await app.instagram.handleWebhook(msgEvent('u81', 'Great, it is 9999061377', 'm_z1'));
+  const lead = await app.store.getLeadByChat('ig:u81');
+  await settle(app, lead.id);
+  const out = sends(graph).map((g) => g.body.message.text);
+  assert.deepStrictEqual(out, ['Got it, thanks! The team will reach out to you there.']);
+  const prompt = llm.seen[0].messages[0].content;
+  assert.match(prompt, /TEAM \(a person\): Hi pls see your dm/, 'the whole chat, with the team labelled, is in front of the model');
+  assert.match(prompt, /CUSTOMER: Could you tell me the commercials/);
+  assert.match(llm.seen[0].system, /Today is /, 'it knows the date today');
+});
+
+test('CONCIERGE: it can stay silent, and a handoff flags the chat for the team', async () => {
+  const llm = conciergeLlm({ action: 'handoff', reply: '', needs_team: true, why: 'asked about her fee' });
+  const { app, graph } = await build({ thread: teamThread(), llm, agentMode: 'concierge' });
+  await app.instagram.handleWebhook(msgEvent('u82', 'Can we do 5k? That is my minimum', 'm_z2'));
+  const lead = await app.store.getLeadByChat('ig:u82');
+  await settle(app, lead.id);
+  assert.strictEqual(sends(graph).length, 0, 'nothing sent');
+  const { attentionFor } = require('../core/attention');
+  const items = attentionFor(await app.store.getLead(lead.id), app.settings.get());
+  assert.ok(items.some((i) => i.kind === 'concierge' && i.level === 'urgent'), 'the team is told');
+});
+
+test('CONCIERGE: a reply that states a price nobody gave it is never sent; the chat goes to a person', async () => {
+  const llm = conciergeLlm({ action: 'reply', reply: 'Sure, our fee is Rs 85,000 for that.', needs_team: false, why: 'x' });
+  const { app, graph } = await build({ thread: teamThread(), llm, agentMode: 'concierge' });
+  await app.instagram.handleWebhook(msgEvent('u83', 'what is your fee', 'm_z3'));
+  const lead = await app.store.getLeadByChat('ig:u83');
+  await settle(app, lead.id);
+  assert.strictEqual(sends(graph).length, 0);
+  assert.strictEqual(llm.seen.length, 3, 'it was asked to try again twice, then gave up');
+});
+
+test('CONCIERGE shadow mode: the draft is kept on the history and nothing is sent', async () => {
+  const llm = conciergeLlm({ action: 'reply', reply: 'Noted, the team will get back to you.', needs_team: false, why: 'x' });
+  const { app, graph } = await build({ thread: teamThread(), llm, agentMode: 'concierge', agentShadow: true });
+  await app.instagram.handleWebhook(msgEvent('u84', 'ok great', 'm_z4'));
+  const lead = await app.store.getLeadByChat('ig:u84');
+  await settle(app, lead.id);
+  assert.strictEqual(sends(graph).length, 0);
+  const ev = (await app.store.all("SELECT data FROM events WHERE lead_id=? AND type='concierge'", lead.id)).map((e) => JSON.parse(e.data));
+  assert.strictEqual(ev[0].draft, 'Noted, the team will get back to you.');
+});
+
+test('CONCIERGE: scripted nudges and reminders are never sent on Instagram', async () => {
+  const llm = conciergeLlm({ action: 'silent', reply: '', needs_team: false, why: 'just thanks' });
+  const { app, graph } = await build({ llm, agentMode: 'concierge' });
+  await app.instagram.handleWebhook(msgEvent('u85', 'Hi I need a full home redesign', 'm_z5'));
+  const lead = await app.store.getLeadByChat('ig:u85');
+  await settle(app, lead.id);
+  const before = sends(graph).length;
+  assert.strictEqual(await app.engine.nudge(lead.id, 'followup'), null);
+  assert.strictEqual(sends(graph).length, before);
+});
+
+test('ARCHIVE: every chat is stored under its own hash key, and the agent is given that one chat only', async () => {
+  const { chatKey } = require('../core/chatkey');
+  const llm = conciergeLlm({ action: 'silent', reply: '', needs_team: false, why: 'x' });
+  const { app } = await build({ thread: teamThread(), llm, agentMode: 'concierge' });
+  await app.instagram.handleWebhook(msgEvent('u91', 'Hello from the FIRST person, about banana campaigns', 'm_a1'));
+  await app.instagram.handleWebhook(msgEvent('u92', 'Hello from the SECOND person, about kiwi campaigns', 'm_a2'));
+  for (const id of ['ig:u91', 'ig:u92']) { const l = await app.store.getLeadByChat(id); await settle(app, l.id); }
+  const prompts = llm.seen.map((o) => o.messages[0].content);
+  const first = prompts.find((p) => /banana/.test(p));
+  const second = prompts.find((p) => /kiwi/.test(p));
+  assert.ok(first && !/kiwi/.test(first), 'the first chat prompt holds nothing from the second');
+  assert.ok(second && !/banana/.test(second), 'the second chat prompt holds nothing from the first');
+  assert.notStrictEqual(chatKey(IG_ID, 'u91'), chatKey(IG_ID, 'u92'));
+  assert.strictEqual(chatKey(IG_ID, 'u91'), chatKey(IG_ID, 'u91'), 'the key is stable');
+  assert.match(chatKey(IG_ID, 'u91'), /^[0-9a-f]{24}$/);
+  const stored = await app.store.archiveGet(chatKey(IG_ID, 'u91'));
+  assert.ok(stored && stored.msgs.length === 3 && stored.msgs[0].text.match(/Etimya|dm/), 'the earlier chat was stored by key, read back with one lookup');
+  const ev = (await app.store.all("SELECT lead_id, data FROM events WHERE type='concierge'")).map((e) => JSON.parse(e.data));
+  assert.ok(ev.every((e) => /^[0-9a-f]{24}$/.test(e.chat)) && ev.every((e) => e.read_msgs >= 1), 'each decision records which chat key it read and how much');
+});
+
+test('CONCIERGE: an email address or link the model made up is never sent; one it was actually given is fine', async () => {
+  let n = 0;
+  const llm = conciergeLlm(() => (++n <= 3 ? { action: 'reply', reply: 'Sure, reach the team at hello@madeup-agency.com anytime.', needs_team: false, why: 'x' } : { action: 'reply', reply: 'Sure, the team will be in touch here.', needs_team: false, why: 'x' }));
+  const { app, graph } = await build({ thread: teamThread(), llm, agentMode: 'concierge' });
+  await app.instagram.handleWebhook(msgEvent('u93', 'what is your email', 'm_e1'));
+  const lead = await app.store.getLeadByChat('ig:u93');
+  await settle(app, lead.id);
+  assert.strictEqual(sends(graph).length, 0, 'the invented address never went out');
+  assert.strictEqual(llm.seen.length, 3, 'it was asked to try again twice before giving up');
+  const { checkReply } = require('../core/concierge');
+  assert.strictEqual(checkReply('Write to hello@real.com', 'our email is hello@real.com'), 'Write to hello@real.com');
+  assert.strictEqual(checkReply('Write to hello@fake.com', 'our email is hello@real.com'), '');
+});
+
+test('CONCIERGE: an unreadable first answer is retried and the readable one is used', async () => {
+  let n = 0;
+  const llm = conciergeLlm(() => (++n === 1 ? 'sorry, here is my thinking...' : { action: 'reply', reply: 'Got it, the team will reach out here.', needs_team: false, why: 'x' }));
+  const { app, graph } = await build({ thread: teamThread(), llm, agentMode: 'concierge' });
+  await app.instagram.handleWebhook(msgEvent('u94', 'ok send me details', 'm_f1'));
+  const lead = await app.store.getLeadByChat('ig:u94');
+  await settle(app, lead.id);
+  assert.deepStrictEqual(sends(graph).map((g) => g.body.message.text), ['Got it, the team will reach out here.']);
 });
