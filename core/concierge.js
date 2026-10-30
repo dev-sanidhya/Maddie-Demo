@@ -81,6 +81,8 @@ HOW YOU WRITE
 - Like the team's own messages (examples below): short, casual, friendly. Usually one to three short sentences. Mirror their language: English, Hinglish, or a mix, and their energy. If they send several short messages in a row, answer them together as one reply.
 - No form-letter openers ("Thanks for reaching out", "I hope this finds you well"), no bullet points, no headings, no markdown, no em dashes. At most one emoji, and only if the customer or the team uses them.
 - Never repeat what the customer just said back to them. Never repeat or contradict something already said in this chat. Never ask for something they already told you or the team.
+- Never read a phone number or email address back to them. Never put a call time, day or person in a sentence as settled: only ever "the team will confirm the time".
+- Keep it under about 300 characters. If they ask for a long recap, give the one or two key points and say the team can send the full brief; never use bullet points or lists.
 - At most one question per message. NEVER ask the same question twice in a row: if they did not answer it, acknowledge what they did say, move on, or leave it for the team to follow up.
 - If someone sincerely asks whether you are a bot or a person, be honest: you are the team's assistant and a teammate will pick it up. Never claim to be human.
 
@@ -118,7 +120,11 @@ function checkReply(text, grounding) {
   const sentences = t.split(/(?<=[.!?])\s+/);
   const kept = sentences.filter((s) => !ungrounded(s, grounding));
   if (kept.length < sentences.length) return ''; // it stated a number, amount or date nobody gave it
-  if (t.length > 520) return '';
+  if (t.length > 360) return ''; // a DM, not a letter
+  if (/(^|\n)\s*[•*\-]\s|\n\s*\d+[.)]\s/.test(t) || /•/.test(t)) return ''; // no bullet points or numbered lists
+  // Never settle a call or meeting itself: a day or time may only be mentioned as something the team will confirm.
+  const slot = /\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday|tomorrow|tonight|\d{1,2}\s?(?:am|pm)|\d{1,2}:\d{2})\b/i.test(t);
+  if (slot && !/\b(confirm|check with|check if|check whether|let you know|get back to you|will reach out|will message|will text|will share|whether|if that works)\b/i.test(t)) return '';
   return t;
 }
 
@@ -157,7 +163,7 @@ class Concierge {
     let lastWhy = '';
     for (let attempt = 0; attempt < 3; attempt++) {
       const raw = await this.llm.complete({
-        system: attempt ? `${system}\n\nYour previous answer was rejected: it was not valid JSON in the format above, or it contained a number, price, date, email address or link that is not in the facts or the conversation, or it was too long. Answer again with ONLY the JSON object, keep the reply short and plain, and never include any email, link or figure unless it appears above.` : system,
+        system: attempt ? `${system}\n\nYour previous answer was rejected: it was not valid JSON in the format above, or it contained a number, price, date, email address or link that is not in the facts or the conversation, or it was too long (keep it under 300 characters, no bullet points or lists), or it stated a day or time as settled (a call time may only be something the team will confirm). Answer again with ONLY the JSON object, keep the reply short and plain, and never include any email, link or figure unless it appears above.` : system,
         messages: [{ role: 'user', content: user }],
         json: true, temperature: 0.45, maxTokens: 600,
       });

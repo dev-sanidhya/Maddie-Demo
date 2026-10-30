@@ -174,7 +174,9 @@ function applyFacts(lead, f, userText, { lastAsked = null, settings, now = Date.
     timeline: known.timeline_months != null,
   };
   // "are you a bot?" is a question about the assistant, not a request for a person
-  const asksIfBot = /\b(are you|r u|is this|am i (?:talking|speaking|chatting) (?:to|with)) (?:a |an )?(?:bot|robot|ai|human|real person|machine|automated)\b/i.test(userText);
+  // "are you a bot", "are u a bot", "r u a bot or a real person", "wait is this a bot": a question about the assistant, never a request for a person
+  const asksIfBot = /\b(are you|are u|r you|r u|u r|is this|am i (?:talking|speaking|chatting) (?:to|with))\s+(?:a |an )?(?:bot|robot|ai|human|real person|real human|machine|automated)\b/i.test(userText)
+    || (/\b(bot|robot|ai|chatbot)\b/i.test(userText) && /\b(real|human|person)\b/i.test(userText) && /\?|\bor\b/i.test(userText));
   const asksForPerson = /\b(talk|speak|connect|transfer|get me|want|need)\b[^.?!]{0,30}\b(human|person|someone|agent|representative|manager|team)\b/i.test(userText);
   if (f.wants_human === true && HUMAN_WORDS.test(userText) && !(asksIfBot && !asksForPerson)) meta.flags.wants_human = true;
   // someone saying outright that they manage or represent creators is routed even if the model missed it

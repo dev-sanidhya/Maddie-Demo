@@ -530,3 +530,32 @@ test('CONCIERGE: an unreadable first answer is retried and the readable one is u
   await settle(app, lead.id);
   assert.deepStrictEqual(sends(graph).map((g) => g.body.message.text), ['Got it, the team will reach out here.']);
 });
+
+test('"are u a bot or a real person?" is a question about the assistant, not a request for a human: the chat is not paused', async () => {
+  const base = fakeLlm();
+  const llm = async (o) => {
+    if ((o.system || '').includes('You extract structured facts')) return { refused: [], wants_human: true };
+    if ((o.system || '').includes('You work the Instagram inbox')) return { action: 'reply', reply: 'I am the team assistant, a teammate will follow up.', needs_team: true, why: 'asked if bot' };
+    return base(o);
+  };
+  for (const text of ['wait are u a bot or a real person?', 'r u a bot or real person??', 'is this a bot', 'bot or human? just wanna know']) {
+    const { app } = await build({ thread: teamThread(), llm, agentMode: 'concierge' });
+    await app.instagram.handleWebhook(msgEvent('u95', text, 'm_bot1'));
+    const lead = await app.store.getLeadByChat('ig:u95');
+    await settle(app, lead.id);
+    const after = await app.store.getLead(lead.id);
+    assert.ok(!after.ai_paused, `"${text}" must not pause the chat`);
+    assert.ok(!(after.meta.flags || {}).wants_human, `"${text}" must not count as asking for a person`);
+  }
+});
+
+test('CONCIERGE reply checks: no confirmed call times, no bullet lists, nothing long', () => {
+  const { checkReply } = require('../core/concierge');
+  const g = 'chat text';
+  assert.strictEqual(checkReply('Got it, we will have the team call you on Monday at 11 am.', g), '', 'a settled call time is rejected');
+  assert.strictEqual(checkReply('Sure, I will ask the team to confirm a Monday 11 am slot with you.', g), 'Sure, I will ask the team to confirm a Monday 11 am slot with you.', 'a call time the team will confirm is fine');
+  assert.strictEqual(checkReply('Here is the recap:\n- Option one\n- Option two', g), '');
+  assert.strictEqual(checkReply('Option 1 • reel • repost', g), '');
+  assert.strictEqual(checkReply('a'.repeat(400), g), '');
+  assert.strictEqual(checkReply('Thanks, the team will be in touch here shortly.', g), 'Thanks, the team will be in touch here shortly.');
+});
