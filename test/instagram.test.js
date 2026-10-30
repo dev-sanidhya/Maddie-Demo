@@ -669,3 +669,27 @@ test('CONCIERGE: when every attempt is rejected the customer still gets a short 
   await settle(app, lead.id);
   assert.strictEqual(sends(graph).length, 1, 'a bare ok gets nothing');
 });
+
+test('editor pass: a faulty draft is replaced by the corrected reply, and a failing editor never loses the reply', async () => {
+  const { Concierge } = require('../core/concierge');
+  const settings = { business: { name: 'Glad U Came', tagline: 'PR', description: 'PR agency', services: ['PR'], areas: 'India', pricing_note: 'on request', timezone: 'Asia/Kolkata' } };
+  const store = { kvGet: async (k, d) => d };
+  const now = Date.now();
+  const rows = [
+    { direction: 'out', role: 'admin', text: 'Hi! Could you share your commercials for one reel?', created_at: now - 60000 },
+    { direction: 'in', text: 'Sure, 1 reel is 10000 rupees', created_at: now - 1000 },
+  ];
+  const writer = JSON.stringify({ action: 'reply', reply: 'Thanks for sharing, I have noted your commercials and the team will review them.', needs_team: true, why: 'rate shared' });
+  let calls = 0;
+  const llm = { complete: async () => { calls++; if (calls === 1) return writer; return JSON.stringify({ verdict: 'fix', issues: 'too generic', reply: 'Thanks, your commercials are noted and with the team. Which beauty brands do you love working with?' }); } };
+  const c = new Concierge({ llm, store, log: { log() {}, warn() {}, error() {} } });
+  const out = await c.respond({ lead: {}, rows, settings, now });
+  assert.equal(out.judge.verdict, 'fixed');
+  assert.match(out.text, /beauty brands/);
+  calls = 0;
+  const llm2 = { complete: async () => { calls++; if (calls === 1) return writer; throw new Error('boom'); } };
+  const c2 = new Concierge({ llm: llm2, store, log: { log() {}, warn() {}, error() {} } });
+  const out2 = await c2.respond({ lead: {}, rows, settings, now });
+  assert.match(out2.text, /commercials/);
+  assert.equal(out2.judge.verdict, 'send');
+});

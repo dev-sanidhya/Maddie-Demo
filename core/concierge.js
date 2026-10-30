@@ -65,6 +65,10 @@ const PROMPT_FILE = path.join(__dirname, '..', 'prompts', 'concierge.md');
 let promptText = null;
 const loadPrompt = () => promptText || (promptText = fs.readFileSync(PROMPT_FILE, 'utf8'));
 
+const JUDGE_FILE = path.join(__dirname, '..', 'prompts', 'judge.md');
+let judgeText = null;
+const loadJudge = () => judgeText || (judgeText = fs.readFileSync(JUDGE_FILE, 'utf8'));
+
 function systemPrompt({ settings, playbook, style, now }) {
   const tz = settings.business.timezone || 'Asia/Kolkata';
   const todayStr = new Intl.DateTimeFormat('en-GB', { timeZone: tz, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }).format(now);
@@ -145,6 +149,24 @@ class Concierge {
     return this._k.v;
   }
 
+  // The editor: a second pass that reads the whole chat and the draft before anything is sent. Returns { verdict: 'send' | 'fix', issues, reply }.
+  // If the editor itself cannot run, the draft (which already passed the code checks) goes out, so a reply is never lost.
+  async review({ writerPrompt, settings, lead, rows, tz, now, facts, playbook, draft }) {
+    try {
+      const system = loadJudge().split('{{BUSINESS}}').join(settings.business.name).split('{{WRITER}}').join(writerPrompt);
+      const newest = [...rows].reverse().findIndex((m) => m.direction === 'out');
+      const unanswered = (newest === -1 ? rows : rows.slice(rows.length - newest)).filter((m) => m.direction === 'in');
+      const user = 'CONVERSATION SO FAR (oldest first):' + String.fromCharCode(10) + transcript(rows, tz, now)
+        + String.fromCharCode(10, 10) + 'WHAT WE ALREADY KNOW ABOUT THEM: ' + factsLine(lead)
+        + String.fromCharCode(10, 10) + "THE CUSTOMER'S NEW MESSAGE(S): " + unanswered.map((m) => '"' + clip(m.text, 500) + '"').join(' ')
+        + String.fromCharCode(10, 10) + 'DRAFT REPLY TO REVIEW: "' + draft + '"';
+      const raw = await this.llm.complete({ system, messages: [{ role: 'user', content: user }], json: true, temperature: 0.1, maxTokens: 800, thinking: Number(process.env.JUDGE_THINKING) || 0 });
+      const out = typeof raw === 'object' && raw ? raw : extractJson(raw);
+      if (!out || !['send', 'fix'].includes(out.verdict)) return { verdict: 'send', skipped: 'unreadable review' };
+      return { verdict: out.verdict, issues: clip(out.issues, 200), reply: String(out.reply || '').trim() };
+    } catch (e) { return { verdict: 'send', skipped: 'editor unavailable: ' + String(e.message).slice(0, 80) }; }
+  }
+
   // The ONE place the assistant gets a chat's history: look the chat up by its hash key in the archive (a primary-key lookup), then add
   // what has happened since (the live message rows). The same message is never counted twice. Other people's chats are never touched.
   async loadChat({ lead, newRows, accountId }) {
@@ -185,24 +207,39 @@ class Concierge {
     const grounding = [facts, playbook, rows.map((m) => m.text).join('\n'), factsLine(lead)].join('\n');
 
     let lastWhy = '';
+    let feedback = '';
     for (let attempt = 0; attempt < 3; attempt++) {
+      const fb = feedback ? ' EDITOR FEEDBACK on your previous draft: ' + feedback + ' Rewrite it to fix exactly that.' : '';
       let raw;
       try { raw = await this.llm.complete({
-        system: attempt ? `${system}\n\nYour previous answer was rejected: it was not valid JSON in the format above, or it contained a number, price, date, email address or link that is not in the facts or the conversation, or it was too long (keep it under 300 characters, no bullet points or lists), or it stated a day or time as settled (a call time may only be something the team will confirm). Answer again with ONLY the JSON object, keep the reply short and plain, and never include any email, link or figure unless it appears above.` : system,
+        system: (attempt ? `${system}\n\nYour previous answer was rejected: it was not valid JSON in the format above, or it contained a number, price, date, email address or link that is not in the facts or the conversation, or it was too long (keep it under 300 characters, no bullet points or lists), or it stated a day or time as settled (a call time may only be something the team will confirm). Answer again with ONLY the JSON object, keep the reply short and plain, and never include any email, link or figure unless it appears above.` : system) + fb,
         messages: [{ role: 'user', content: user }],
         json: true, temperature: 0.45, maxTokens: 600,
       }); } catch (e) { lastWhy = `AI error: ${String(e.message).slice(0, 100)}`; break; }
       const out = typeof raw === 'object' && raw ? raw : extractJson(raw);
-      if (!out || !['reply', 'silent', 'handoff'].includes(out.action)) { lastWhy = 'unreadable answer'; continue; }
+      if (!out || !['reply', 'silent', 'handoff'].includes(out.action)) { if (process.env.CONCIERGE_DEBUG) console.error('[unreadable] ' + JSON.stringify(typeof raw === 'string' ? raw.slice(0, 1500) : raw)); lastWhy = 'unreadable answer'; continue; }
       const why = clip(out.why, 200);
       const needsTeam = out.needs_team === true || out.action === 'handoff';
       if (out.action === 'silent' || !String(out.reply || '').trim()) return { action: out.action === 'handoff' ? 'handoff' : 'silent', text: '', needsTeam, why };
       const text = checkReply(out.reply, grounding, { previous, recent, contactGrounding: [facts, playbook].join(' ') });
-      if (text) return { action: out.action, text, needsTeam, why };
+      if (text) {
+        const t0 = Date.now();
+        const rv = await this.review({ writerPrompt: system, settings, lead, rows, tz, now, facts, playbook, draft: text });
+        if (process.env.CONCIERGE_DEBUG) console.error('[judge] ' + rv.verdict + ' ' + (Date.now() - t0) + 'ms issues=' + (rv.issues || '') + (rv.skipped ? ' SKIPPED ' + rv.skipped : ''));
+        if (rv.verdict === 'send') return { action: out.action, text, needsTeam, why, judge: { verdict: 'send', ...(rv.skipped ? { skipped: rv.skipped } : {}) } };
+        const fixed = rv.reply ? checkReply(rv.reply, grounding, { previous, recent, contactGrounding: [facts, playbook].join(' ') }) : '';
+        if (fixed) return { action: out.action, text: fixed, needsTeam: true, why, judge: { verdict: 'fixed', issues: rv.issues, original: text } };
+        if (process.env.CONCIERGE_DEBUG) console.error('[editor] draft=' + JSON.stringify(text) + ' issues=' + rv.issues + ' fix=' + JSON.stringify(rv.reply) + ' fixPassed=' + !!fixed);
+        feedback = rv.issues || 'the draft broke the editor checks';
+        lastWhy = 'editor rejected: ' + feedback;
+        continue;
+      }
+      if (process.env.CONCIERGE_DEBUG) console.error('[checks] rejected ' + JSON.stringify(out.reply));
       lastWhy = `reply rejected: ${clip(out.reply, 80)}`;
     }
     // Never send something we do not trust: a person gets the chat instead. If the customer wrote something real, they also get a
     // short holding line (never silence), chosen so it differs from the last thing we said.
+    if (process.env.CONCIERGE_DEBUG) console.error('[fallback] ' + lastWhy);
     const lastIn = [...rows].reverse().find((m) => m.direction === 'in');
     const substantive = lastIn && (String(lastIn.text).trim().split(/\s+/).length > 2 || lastIn.text.includes('?'));
     const holding = ['Thanks, noted. I have flagged this for the team.', 'Got it, thank you. The team will take it from here.', 'Noted, I will make sure the team sees this.'].find((h) => !recent.includes(h) && h !== previous) || '';

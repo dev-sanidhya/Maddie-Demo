@@ -391,7 +391,7 @@ class Engine extends EventEmitter {
         const meta2 = { ...lead.meta, concierge: { at: Date.now(), action: out.action, why: out.why, needs_team: !!out.needsTeam } };
         await this.store.updateLead(lead.id, { meta: meta2 });
         lead = { ...lead, meta: meta2 };
-        await this.store.addEvent(lead.id, 'concierge', { action: out.action, why: out.why, needs_team: !!out.needsTeam, chat: key, read_msgs: conciergeRows.length, archive_msgs: conciergeCtx.archiveN, from_archive: conciergeCtx.fromArchive, live_msgs: conciergeCtx.liveN, ...(this.config.agentShadow && out.text ? { draft: out.text } : {}) });
+        await this.store.addEvent(lead.id, 'concierge', { action: out.action, why: out.why, needs_team: !!out.needsTeam, chat: key, read_msgs: conciergeRows.length, archive_msgs: conciergeCtx.archiveN, from_archive: conciergeCtx.fromArchive, live_msgs: conciergeCtx.liveN, ...(out.judge ? { judge: out.judge } : {}), ...(this.config.agentShadow && out.text ? { draft: out.text } : {}) });
         reply = this.config.agentShadow ? null : (out.text || null); // shadow mode: the draft is kept on the history, nothing is sent
         decision = { ...decision, directive: reply ? { type: 'CONCIERGE' } : null };
       } else {
