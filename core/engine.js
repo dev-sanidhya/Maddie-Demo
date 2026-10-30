@@ -429,6 +429,9 @@ class Engine extends EventEmitter {
       const hesitated = !!(meta.refusals && meta.refusals[field] > 0) && !changed.includes(col);
       directive = greeting ? { type: 'GREET', field } : { type: 'ASK', field, hesitated, attempt: meta.asked[field] || 0 };
     }
+    // A chat our own team has been part of is the team's conversation: the assistant only acknowledges and keeps the line warm.
+    // It never runs the client qualification script, books calls, or talks money there (the team decides all of that).
+    if (meta.team_thread && directive && directive.type !== 'HANDOFF') directive = { type: 'TEAM_ACK' };
     if (directive && changed.includes('phone')) directive.gotPhone = true;
     return { ev, stage, reason: reasonText, directive, lead };
   }

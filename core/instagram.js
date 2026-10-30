@@ -269,7 +269,8 @@ class Instagram {
     const lastIn = [...thread].reverse().find((m) => !m.fromUs);
     const lastOut = [...thread].reverse().find((m) => m.fromUs);
     const team = thread.some((m) => m.fromUs);
-    const meta = { ...lead.meta, history_imported: thread.length, ...(team ? { team_thread: true } : {}) };
+    const lastTeam = [...thread].reverse().find((m) => m.fromUs);
+    const meta = { ...lead.meta, history_imported: thread.length, ...(team ? { team_thread: true, team_last_at: lastTeam.at } : {}) };
     await this.store.updateLead(lead.id, { meta, last_inbound_at: lastIn ? lastIn.at : null, last_outbound_at: lastOut ? lastOut.at : null });
     await this.store.addEvent(lead.id, 'history_imported', { messages: thread.length, team });
   }
@@ -296,7 +297,8 @@ class Instagram {
     const lastIn = [...thread].reverse().find((m) => !m.fromUs);
     const lastOut = [...thread].reverse().find((m) => m.fromUs);
     const team = thread.some((m) => m.fromUs && !isBot(m));
-    const meta = { ...lead.meta, history_imported: thread.length, ...(team ? { team_thread: true } : {}) };
+    const lastTeam = [...thread].reverse().find((m) => m.fromUs && !isBot(m));
+    const meta = { ...lead.meta, history_imported: thread.length, ...(team ? { team_thread: true, team_last_at: lastTeam.at } : {}) };
     await this.store.updateLead(lead.id, { meta, summary: '', summary_upto: 0, last_inbound_at: lastIn ? lastIn.at : lead.last_inbound_at, last_outbound_at: lastOut ? lastOut.at : lead.last_outbound_at });
     await this.store.addEvent(lead.id, 'history_reloaded', { messages: thread.length, was: old.length, team });
     this.engine.changed('lead', lead.id);

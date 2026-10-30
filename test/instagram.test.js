@@ -394,3 +394,25 @@ test('someone our team approached is treated as a creator in talks with the team
   assert.strictEqual(after.stage, 'human');
   assert.match(seen[0], /STUDIO TEAM \(a person on our team\): Hi pls see your dm/, 'the model is told which earlier messages were the team');
 });
+
+test('in a chat the team is part of, the assistant only sends a short safe acknowledgement (never numbers, prices or questions), and the team gets a follow-up flag', async () => {
+  const base = fakeLlm();
+  let replySystem = '';
+  const llm = async (o) => {
+    if ((o.system || '').includes('You extract structured facts')) return { refused: [], phone: '9999061377' };
+    replySystem = o.system;
+    return 'Thanks! I have noted 9999061377 and our payment terms are 50 percent upfront. Which city is the campaign in?';
+  };
+  const { app, graph } = await build({ thread: teamThread(), llm });
+  await app.instagram.handleWebhook(msgEvent('u79', 'Great, it is 9999061377', 'm_t1'));
+  const lead = await app.store.getLeadByChat('ig:u79');
+  await settle(app, lead.id);
+  assert.match(replySystem, /A person on the studio team has been talking with this person/, 'told it is a team chat');
+  const out = sends(graph).map((g) => g.body.message.text);
+  assert.strictEqual(out.length, 1);
+  assert.ok(!/\d{5,}|payment|\?/.test(out[0]), `unsafe reply was replaced: ${out[0]}`);
+  assert.match(out[0], /team will take it forward/);
+  const { attentionFor } = require('../core/attention');
+  const fresh = await app.store.getLead(lead.id);
+  assert.ok(attentionFor(fresh, app.settings.get()).some((i) => i.kind === 'team_followup'), 'the team is told to follow up');
+});

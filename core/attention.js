@@ -61,6 +61,11 @@ function attentionFor(lead, settings, now = Date.now()) {
     items.push({ level: 'soon', kind: 'no_time', title: 'No call time agreed yet', detail: lead.callback_text ? `They said: "${lead.callback_text}".` : 'Ask when they would like the call.', due_at: lead.qualified_at });
   }
 
+  // A customer wrote in a chat our own team is handling, and the team has not answered since: the assistant only sent a short holding reply.
+  if (meta.team_thread && !flags.wants_human && lead.stage !== 'disqualified' && lead.last_inbound_at && lead.last_inbound_at > (meta.team_last_at || 0) && now - lead.last_inbound_at < 3 * 24 * HOUR) {
+    items.push({ level: 'soon', kind: 'team_followup', title: 'Replied in a chat your team is handling', detail: 'The assistant only sent a short holding reply. Take it from here.', due_at: lead.last_inbound_at });
+  }
+
   const order = { urgent: 0, soon: 1 };
   return items.sort((a, b) => order[a.level] - order[b.level] || (a.due_at || 0) - (b.due_at || 0));
 }

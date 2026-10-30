@@ -122,6 +122,8 @@ function directiveBody(d, ctx) {
       }
       return `${hello}They are a creator or influencer, not a brand. Be warm, brief and conversational. Answer what they asked using ONLY the approved creator notes (anything not covered there: say the team will review it). ${never} ${need ? `Then ask ONE question to find out ${HINT[need]}.${d.first ? ' Say in a few words that you are collecting this so the team can review them for relevant opportunities.' : ''}` : 'You now have what you need: thank them, say you have noted their details and passed them to the team, who will review them for relevant opportunities and get back to them. Do NOT list their details back to them. Do not promise selection or any timeline. Ask nothing.'}`;
     }
+    case 'TEAM_ACK':
+      return 'A person on the studio team has been talking with this person in this chat (their messages are marked [Studio team member wrote]) and is handling the conversation, the offer, the fee and the brief. The customer has just written again. Reply in ONE or TWO short sentences, in the same friendly, casual tone as the team\'s own messages. Open with a quick friendly "Thanks" (use their first name if you know it), like a real person would. Acknowledge exactly what they just said: if they shared a phone number or email, thank them and say it is noted and the team will take it forward from there, WITHOUT repeating the number or email back; if they said yes or sounded keen, say great and that the team will continue with them; if they asked a practical question that the team has ALREADY answered above, give that same answer; for anything else say the team will confirm shortly. Ask NO question. Do not introduce yourself or the studio, do not mention services, prices, payment terms, deadlines or anything the team has not said above, and never negotiate or confirm a fee.';
     case 'ANSWER':
       return 'They asked a question. Answer it briefly and helpfully using ONLY the business facts above. If you do not know, say a team member can confirm on a free consultation. Do not ask any question.';
     case 'CLOSE_ACTIVE':
@@ -293,13 +295,16 @@ class Agent {
       maxTokens: 700,
     });
     const isCreator = directive.type === 'CREATOR';
-    const closing = ['CLOSE_NURTURE', 'CLOSE_DISQUALIFIED', 'HANDOFF', 'DRIP', 'ANSWER', 'REMINDER'].includes(directive.type) || (isCreator && directive.complete);
+    const closing = ['CLOSE_NURTURE', 'CLOSE_DISQUALIFIED', 'HANDOFF', 'DRIP', 'ANSWER', 'REMINDER', 'TEAM_ACK'].includes(directive.type) || (isCreator && directive.complete);
     const grounding = [businessBlock(settings), renderFacts(lead, settings.qualification.currency, settings.business.timezone), ctx.summary || '', (directive.slots || []).join(' '), directive.when || '', directive.requested || ''].join('\n');
     const previous = [...history].reverse().find((m) => m.role !== 'user');
     const clean = sanitizeReply(typeof raw === 'string' ? raw : '', lead, {
       maxQuestions: closing ? 0 : 1, grounding, emojis: isCreator ? 'light' : settings.agent.emojis, emojiSet: isCreator ? CREATOR_EMOJIS : undefined, polish: settings.agent.polish,
       previous: previous ? previous.text : '', declining: ['CLOSE_DISQUALIFIED', 'HANDOFF'].includes(directive.type),
     });
+    // In a chat the team is handling, a holding reply must be plain: never repeat a number or email back (garbles easily),
+    // and anything that drifts into prices or terms is replaced by the fixed, safe acknowledgement.
+    if (directive.type === 'TEAM_ACK' && clean && /\d{5,}|@|\bemail (is|as)\b|\b(rs\.?|inr|₹|lakh|retainer|fee|payment|gst|%)\b/i.test(clean)) return '';
     return clean;
   }
 
@@ -356,6 +361,8 @@ function fallbackReply(directive, ctx) {
       return directive.slots && directive.slots.length ? `Sorry, ${directive.requested} is not free. I can do ${directive.slots.join(', or ')}. Which works best for you?` : `Sorry, ${directive.requested} is not free. The team will message you with a time shortly.`;
     case 'REMINDER':
       return `Hi ${first}, a quick reminder that ${designer ? designer.name : 'our team member'} will call you ${directive.when ? `at ${directive.when}` : 'soon'}. Reply here if the time needs to change.`;
+    case 'TEAM_ACK':
+      return `Thanks ${first}, noted! Our team will take it forward and get back to you shortly.`;
     case 'POST':
       return `Noted, I have passed that on to the team.${directive.askCallback ? (directive.slots && directive.slots.length ? ` I can do ${directive.slots.join(', or ')} for a call. Which works best?` : ' What day and time suit you for the designer call?') : directive.askPhone ? ' What is the best number to reach you on?' : ''}`;
     case 'FOLLOWUP':
