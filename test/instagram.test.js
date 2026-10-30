@@ -251,28 +251,16 @@ const teamThread = () => [
   { id: 'm3', created_time: new Date(T0 + 7200000).toISOString(), from: { id: IG_ID, username: 'brandstudio' }, message: 'The commercial is 3000, can stretch to 4000' },
 ];
 
-test('a first message into a chat the team already started: earlier messages are loaded in order and the assistant stays out', async () => {
+test('a first message into a chat the team already started: earlier messages are loaded in order and the assistant still answers (history is context, not a pause)', async () => {
   const { app, graph } = await build({ thread: teamThread() });
   await app.instagram.handleWebhook(msgEvent('u77', 'Can we do 5k? That is my minimum', 'm_new'));
   const lead = await app.store.getLeadByChat('ig:u77');
   await settle(app, lead.id);
-  const rows = await app.store.all('SELECT direction, role, text, processed FROM messages WHERE lead_id=? ORDER BY id', lead.id);
-  assert.deepStrictEqual(rows.map((r) => r.direction), ['out', 'in', 'out', 'in'], 'history first, then the new message');
+  const rows = await app.store.all('SELECT direction, role, text FROM messages WHERE lead_id=? ORDER BY id', lead.id);
+  assert.deepStrictEqual(rows.map((r) => `${r.direction}:${r.role}`), ['out:admin', 'in:user', 'out:admin', 'in:user', 'out:assistant'], 'history first, then the new message, then the assistant');
   assert.match(rows[0].text, /Etimya/);
-  assert.strictEqual(rows[2].role, 'admin');
-  const after = await app.store.getLead(lead.id);
-  assert.ok(after.ai_paused, 'assistant paused because the team already spoke');
-  assert.strictEqual(sends(graph).length, 0, 'nothing was sent to the customer');
-});
-
-test('assist mode: earlier messages are loaded and the assistant carries on without a greeting', async () => {
-  const { app, graph } = await build({ thread: teamThread(), mode: 'assist' });
-  await app.instagram.handleWebhook(msgEvent('u77', 'Can we do 5k?', 'm_new2'));
-  const lead = await app.store.getLeadByChat('ig:u77');
-  await settle(app, lead.id);
-  assert.ok(!(await app.store.getLead(lead.id)).ai_paused);
-  assert.ok(sends(graph).length >= 1, 'it replied');
-  assert.ok(!/FIRST message/.test(JSON.stringify(sends(graph).map((g) => g.body))), 'no first-contact greeting');
+  assert.ok(!(await app.store.getLead(lead.id)).ai_paused, 'earlier team involvement never pauses the assistant');
+  assert.strictEqual(sends(graph).length, 1, 'it answered');
 });
 
 test('a brand new chat with no history still gets the normal greeting', async () => {
@@ -284,21 +272,21 @@ test('a brand new chat with no history still gets the normal greeting', async ()
   assert.ok(sends(graph).length >= 1);
 });
 
-test('a message the team sends from the Instagram app is recorded and pauses the assistant (its own replies do not)', async () => {
+test('a message the team sends from the Instagram app is recorded in the transcript (the assistant own echo is ignored) and nothing is paused', async () => {
   const { app } = await build();
   await app.instagram.handleWebhook(msgEvent('u99', 'Hi, I need a full home redesign', 'm_y'));
   const lead = await app.store.getLeadByChat('ig:u99');
   await settle(app, lead.id);
   const botReply = (await app.store.all("SELECT text FROM messages WHERE lead_id=? AND direction='out' ORDER BY id DESC LIMIT 1", lead.id))[0].text;
   const echo = (text, mid) => ({ object: 'instagram', entry: [{ id: IG_ID, time: Date.now(), messaging: [{ sender: { id: IG_ID }, recipient: { id: 'u99' }, timestamp: Date.now(), message: { mid, text, is_echo: true } }] }] });
+  const n0 = (await app.store.all('SELECT id FROM messages WHERE lead_id=?', lead.id)).length;
   await app.instagram.handleWebhook(echo(botReply, 'echo_bot'));
-  assert.ok(!(await app.store.getLead(lead.id)).ai_paused, "the assistant's own echo is ignored");
+  assert.strictEqual((await app.store.all('SELECT id FROM messages WHERE lead_id=?', lead.id)).length, n0, "the assistant's own echo adds nothing");
   await app.instagram.handleWebhook(echo('Hey, this is Sam from the team, calling you shortly', 'echo_human'));
-  const after = await app.store.getLead(lead.id);
-  assert.ok(after.ai_paused, 'a human message pauses the assistant');
   const last = (await app.store.all("SELECT text, role FROM messages WHERE lead_id=? ORDER BY id DESC LIMIT 1", lead.id))[0];
   assert.match(last.text, /Sam from the team/);
   assert.strictEqual(last.role, 'admin');
+  assert.ok(!(await app.store.getLead(lead.id)).ai_paused, 'recording a team message does not pause the chat');
 });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -335,7 +323,7 @@ test('a message that lands while the reply is being written is folded in, still 
   assert.strictEqual((await app.store.getLead(lead.id)).budget_amount, 2000000, 'the second message was used');
 });
 
-test('LAST LOOK: a team member answers between the customer message and the assistant reply: the assistant holds back', async () => {
+test('HOLD: the team already answered the latest customer message, so the assistant holds back; the NEXT message it answers again', async () => {
   const thread = [];
   const { app, graph } = await build({ thread });
   await app.instagram.handleWebhook(msgEvent('u52', 'Hi, I need a full home redesign', 'm_d1'));
@@ -343,14 +331,20 @@ test('LAST LOOK: a team member answers between the customer message and the assi
   await settle(app, lead.id);
   const before = sends(graph).length;
   assert.ok(before >= 1);
-  thread.push({ id: 'human1', created_time: new Date().toISOString(), from: { id: IG_ID, username: 'brandstudio' }, message: 'Hey, Sam here, I will take it from here' });
+  // the customer writes; before the assistant answers, a team member answers in the Instagram app
   await app.instagram.handleWebhook(msgEvent('u52', 'Great, what are your rates?', 'm_d2'));
+  thread.push({ id: 'cust2', created_time: new Date(Date.now() - 1000).toISOString(), from: { id: 'u52', username: 'x' }, message: 'Great, what are your rates?' });
+  thread.push({ id: 'human1', created_time: new Date(Date.now() + 500).toISOString(), from: { id: IG_ID, username: 'brandstudio' }, message: 'Hey, Sam here, our rates start at 50k' });
   await settle(app, lead.id);
-  assert.strictEqual(sends(graph).length, before, 'no new assistant message was sent');
-  const after = await app.store.getLead(lead.id);
-  assert.ok(after.ai_paused, 'the chat is now paused for the team');
+  assert.strictEqual(sends(graph).length, before, 'no new assistant message: the team already replied');
+  assert.ok(!(await app.store.getLead(lead.id)).ai_paused, 'the chat is NOT paused');
   const texts = (await app.store.all('SELECT text FROM messages WHERE lead_id=? ORDER BY id', lead.id)).map((r) => r.text);
   assert.ok(texts.some((t) => /Sam here/.test(t)), "the team's message is in the transcript");
+  // a later customer message that nobody has answered gets an answer
+  thread.push({ id: 'cust3', created_time: new Date(Date.now() + 5000).toISOString(), from: { id: 'u52', username: 'x' }, message: 'ok and the timeline?' });
+  await app.instagram.handleWebhook(msgEvent('u52', 'ok and the timeline?', 'm_d3'));
+  await settle(app, lead.id);
+  assert.strictEqual(sends(graph).length, before + 1, 'the assistant answered the unanswered message');
 });
 
 test('RELOAD: an existing chat is rebuilt from Instagram, the assistant\'s old replies stay the assistant\'s, the team\'s are the team\'s', async () => {
@@ -382,4 +376,21 @@ test('the id of the assistant\'s own message is remembered, so its echo is never
   await settle(app, lead.id);
   const out = (await app.store.all("SELECT ext_id FROM messages WHERE lead_id=? AND direction='out'", lead.id))[0];
   assert.strictEqual(out.ext_id, 'm_out');
+});
+
+test('someone our team approached is treated as a creator in talks with the team, not as a new client', async () => {
+  const seen = [];
+  const base = fakeLlm();
+  const llm = async (o) => {
+    if ((o.system || '').includes('You extract structured facts')) { seen.push(o.messages[0].content); return { refused: [], contact_type: 'creator_in_campaign', creator: { issue: 'asks for 5k' } }; }
+    return base(o);
+  };
+  const { app } = await build({ thread: teamThread(), llm });
+  await app.instagram.handleWebhook(msgEvent('u78', 'Can we do 5k?', 'm_k1'));
+  const lead = await app.store.getLeadByChat('ig:u78');
+  await settle(app, lead.id);
+  const after = await app.store.getLead(lead.id);
+  assert.strictEqual(after.meta.flags.routed, 'creator_in_campaign');
+  assert.strictEqual(after.stage, 'human');
+  assert.match(seen[0], /STUDIO TEAM \(a person on our team\): Hi pls see your dm/, 'the model is told which earlier messages were the team');
 });

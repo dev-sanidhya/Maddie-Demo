@@ -304,6 +304,16 @@ class Engine extends EventEmitter {
       return;
     }
 
+    // A person on the team has already answered what they said (their message is on record after the customer's): stay quiet.
+    // Earlier team involvement does not matter; only a reply to THIS message does. No AI call is spent.
+    const newestIn = Math.max(...rows.map((r) => Number(r.created_at)));
+    if (lead.channel !== 'sim' && await this.store.get("SELECT id FROM messages WHERE lead_id=? AND direction='out' AND role='admin' AND created_at>=? LIMIT 1", leadId, newestIn)) {
+      await markProcessed();
+      await this.store.addEvent(lead.id, 'reply_held_back', { reason: 'team_already_replied' });
+      this.changed('message', lead.id);
+      return;
+    }
+
     // Someone is still typing: a newer message is already waiting. Do not spend an AI call on a half-said thought;
     // the next pass picks up everything they have said so far and answers it ONCE.
     const newerWaiting = () => this.store.get("SELECT id FROM messages WHERE lead_id=? AND direction='in' AND processed=0 AND id>? LIMIT 1", leadId, Math.max(...rowIds));

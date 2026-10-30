@@ -272,10 +272,6 @@ class Instagram {
     const meta = { ...lead.meta, history_imported: thread.length, ...(team ? { team_thread: true } : {}) };
     await this.store.updateLead(lead.id, { meta, last_inbound_at: lastIn ? lastIn.at : null, last_outbound_at: lastOut ? lastOut.at : null });
     await this.store.addEvent(lead.id, 'history_imported', { messages: thread.length, team });
-    if (team && this.cfg.teamThreadMode !== 'assist') {
-      await this.store.updateLead(lead.id, { ai_paused: 1 });
-      await this.store.addEvent(lead.id, 'ai_paused', { by: 'team_thread', auto: true });
-    }
   }
 
   // Rebuilds the transcript of a chat that already exists from Instagram's own copy of the conversation (for chats
@@ -324,10 +320,6 @@ class Instagram {
     const meta = { ...lead.meta, team_thread: true, team_last_at: Date.now() };
     await this.store.updateLead(lead.id, { meta, last_outbound_at: Date.now() });
     await this.store.addEvent(lead.id, 'team_message', {});
-    if (!lead.ai_paused && this.cfg.teamThreadMode !== 'assist') {
-      await this.store.updateLead(lead.id, { ai_paused: 1 });
-      await this.store.addEvent(lead.id, 'ai_paused', { by: 'team_message', auto: true });
-    }
     this.engine.changed('lead', lead.id);
   }
 
@@ -342,37 +334,33 @@ class Instagram {
     };
   }
 
-  // Last look before the assistant speaks: has a person on the team written in this chat since we last checked?
-  // This does not depend on the echo webhook arriving, so it is the safety net. Any unknown message from our own
-  // account in the last week is a human (the assistant's own sends are matched by id or by their text).
-  async humanActive(lead, { windowMs = 7 * 86400000, dryRun = false } = {}) {
-    const thread = await this.fetchThread(this.igsid(lead), 8);
-    const since = Date.now() - windowMs;
-    const mine = await this.store.all("SELECT text, ext_id FROM messages WHERE lead_id=? AND direction='out' ORDER BY id DESC LIMIT 12", lead.id);
-    const known = new Set(mine.map((r) => r.ext_id).filter(Boolean));
-    const found = [];
-    for (const m of thread) {
-      if (!m.fromUs || m.at < since || known.has(m.mid)) continue;
-      if (mine.some((r) => r.text.includes(m.text) || (r.text.length > 40 && m.text.startsWith(r.text.slice(0, 40))))) continue;
-      found.push(m);
-    }
-    if (!found.length) return false;
-    if (dryRun) return found.map((m) => ({ at: m.at, text: m.text.slice(0, 80) }));
-    for (const m of found) {
-      if (await this.store.get('SELECT id FROM messages WHERE ext_id=?', m.mid)) continue;
-      const id = await this.store.addMessage({ lead_id: lead.id, direction: 'out', role: 'admin', text: m.text.slice(0, 4000), ext_id: m.mid, status: 'sent', processed: true, created_at: m.at }).catch(() => null);
-      if (!id) continue;
+  // Last look before the assistant speaks: has a person on the team ALREADY ANSWERED what the customer last said?
+  // Older team involvement (a month-old negotiation, the studio's own outreach) does not matter: that is only context.
+  // It reads the live chat, so it does not depend on the echo webhook arriving. A message from our own account that
+  // the assistant did not write (not matched by id or by its text) is a person's. It counts only if it is NEWER than the
+  // customer's latest message (the later of Instagram's time and the moment we received it).
+  async teamReplied(lead, { dryRun = false } = {}) {
+    const thread = await this.fetchThread(this.igsid(lead), 10);
+    const mine = await this.store.all("SELECT text, ext_id FROM messages WHERE lead_id=? AND direction='out' AND role!='admin' ORDER BY id DESC LIMIT 12", lead.id);
+    const known = new Set((await this.store.all("SELECT ext_id FROM messages WHERE lead_id=? AND ext_id IS NOT NULL ORDER BY id DESC LIMIT 60", lead.id)).map((r) => r.ext_id));
+    const lastCustomer = Math.max(lead.last_inbound_at || 0, ...thread.filter((m) => !m.fromUs).map((m) => m.at));
+    const isBot = (m) => mine.some((r) => r.text.includes(m.text) || (r.text.length > 40 && m.text.startsWith(r.text.slice(0, 40))));
+    const answered = thread.filter((m) => m.fromUs && m.at > lastCustomer && !isBot(m));
+    if (!answered.length) return false;
+    if (dryRun) return answered.map((m) => ({ at: m.at, text: m.text.slice(0, 80) }));
+    for (const m of answered) {
+      if (known.has(m.mid)) continue;
+      await this.store.addMessage({ lead_id: lead.id, direction: 'out', role: 'admin', text: m.text.slice(0, 4000), ext_id: m.mid, status: 'sent', processed: true, created_at: Math.min(m.at, Date.now()) }).catch(() => null);
     }
     const fresh = await this.store.getLead(lead.id);
-    await this.store.updateLead(lead.id, { ai_paused: 1, last_outbound_at: Date.now(), meta: { ...fresh.meta, team_thread: true, team_last_at: Date.now() } });
-    await this.store.addEvent(lead.id, 'ai_paused', { by: 'team_message', auto: true, via: 'last_look' });
+    await this.store.updateLead(lead.id, { last_outbound_at: Date.now(), meta: { ...fresh.meta, team_thread: true, team_last_at: Date.now() } });
     this.engine.changed('lead', lead.id);
     return true;
   }
 
   async sendText(lead, text, { role } = {}) {
-    if (role !== 'admin' && this.cfg.teamThreadMode !== 'assist' && (await this.humanActive(lead).catch(() => false))) {
-      const e = new InstagramError('A team member is already replying in this chat, so the assistant held back.', { permanent: true });
+    if (role !== 'admin' && (await this.teamReplied(lead).catch(() => false))) {
+      const e = new InstagramError('The team has already replied to this message, so the assistant held back.', { permanent: true });
       e.heldBack = true;
       throw e;
     }

@@ -181,7 +181,10 @@ function applyFacts(lead, f, userText, { lastAsked = null, settings, now = Date.
   if (!meta.flags.routed && /\b(i|we) (manage|represent|run|handle)\b[^.?!]{0,50}\b(creators?|influencers?|talent|models|celebrit\w+)\b|\b(talent|influencer) (management|agency)\b/i.test(userText)) meta.flags.routed = 'agency_manager';
   const upgrades = { creator: ['creator_in_campaign'] };
   const kindNow = meta.flags.routed;
-  if (ROUTE_WORDS[f.contact_type] && ROUTE_WORDS[f.contact_type].test(userText) && (!kindNow || (upgrades[kindNow] || []).includes(f.contact_type))) meta.flags.routed = f.contact_type;
+  // Someone OUR team approached (their earlier messages are in the chat) rarely uses the usual keywords ("Can we do 5k?"):
+  // there the model's reading of the team's own messages is enough to treat them as a creator in talks with the team.
+  const teamApproached = !!meta.team_thread && ['creator_in_campaign', 'creator'].includes(f.contact_type);
+  if (ROUTE_WORDS[f.contact_type] && (teamApproached || ROUTE_WORDS[f.contact_type].test(userText)) && (!kindNow || (upgrades[kindNow] || []).includes(f.contact_type))) meta.flags.routed = f.contact_type;
   // creator details, collected one question at a time and kept on the lead
   if (f.creator && typeof f.creator === 'object') {
     const cr = { ...(meta.creator || {}) };

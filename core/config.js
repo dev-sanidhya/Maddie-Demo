@@ -55,9 +55,6 @@ module.exports = {
     verifyToken: env.INSTAGRAM_VERIFY_TOKEN || '',
     handle: (env.INSTAGRAM_HANDLE || '').replace(/^@/, ''),
     apiVersion: env.INSTAGRAM_API_VERSION || 'v23.0',
-    // What to do when the studio's own team has already spoken in a chat (outreach, or a reply sent from the Instagram app).
-    // 'pause' (default): the assistant stays out of that chat and the team is alerted. 'assist': the assistant carries on with the earlier messages as context.
-    teamThreadMode: env.TEAM_THREAD_MODE === 'assist' ? 'assist' : 'pause',
     // This deployment's own Instagram account id (the "user_id" from /me). When set, webhook events for any other account are ignored.
     accountId: (env.INSTAGRAM_ACCOUNT_ID || '').trim(),
     // Several client accounts can share one Meta app, and Meta delivers all their events to ONE callback URL.
