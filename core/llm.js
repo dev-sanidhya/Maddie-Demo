@@ -104,6 +104,7 @@ class Llm {
     const est = this.estimate({ system, messages, maxTokens });
     const entry = { t: Date.now(), n: est };
     (this.tok[c.key] = this.tok[c.key] || []).push(entry);
+    if (provider.kind === 'anthropic') return this.anthropicCall(c, { system, messages, json, maxTokens, temperature }, entry);
     const body = {
       model,
       messages: [...(system ? [{ role: 'system', content: system }] : []), ...messages],
@@ -137,6 +138,56 @@ class Llm {
       if (!text || !String(text).trim()) throw new LlmError('LLM returned empty content');
       this.stats.lastLatencyMs = Date.now() - t0;
       return String(text).trim();
+    } catch (e) {
+      if (e.name === 'AbortError') { const err = new LlmError('LLM timeout'); err.status = 408; throw err; }
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // Claude on api.anthropic.com with a Claude Code OAuth token (from "claude setup-token"). The token is only accepted when the
+  // system prompt starts with the Claude Code line, so that line is sent first and our own instructions follow as a second block.
+  async anthropicCall(c, { system, messages, json, maxTokens, temperature }, entry) {
+    const { provider, model } = c;
+    const blocks = (content) => (Array.isArray(content)
+      ? content.map((p) => {
+        if (p.type === 'image_url') { const m = /^data:([^;]+);base64,(.+)$/.exec((p.image_url && p.image_url.url) || ''); return m ? { type: 'image', source: { type: 'base64', media_type: m[1], data: m[2] } } : null; }
+        return { type: 'text', text: String(p.text || '') };
+      }).filter(Boolean)
+      : String(content));
+    const msgs = messages.map((m) => ({ role: m.role === 'assistant' ? 'assistant' : 'user', content: blocks(m.content) }));
+    if (json && msgs.length && typeof msgs[msgs.length - 1].content === 'string') msgs[msgs.length - 1].content += `${'\n'}${'\n'}Reply with one JSON object only, no prose and no code fences.`;
+    const body = {
+      model, max_tokens: maxTokens || 700, messages: msgs,
+      system: [{ type: 'text', text: "You are Claude Code, Anthropic's official CLI for Claude." }, ...(system ? [{ type: 'text', text: system }] : [])],
+    };
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), this.cfg.timeoutMs);
+    const t0 = Date.now();
+    try {
+      const res = await this.fetch(`${provider.baseUrl}/v1/messages`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${provider.apiKey}`, 'anthropic-version': '2023-06-01', 'anthropic-beta': 'oauth-2025-04-20', 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
+        const err = new LlmError(`LLM ${res.status}: ${errText.slice(0, 300)}`);
+        err.status = res.status;
+        err.quota = res.status === 429 && /(usage limit|limit reached|credit|quota)/i.test(errText);
+        err.retryAfter = Number(res.headers.get('retry-after')) || 0;
+        throw err;
+      }
+      const data = await res.json();
+      const u = data.usage || {};
+      this.record(provider.name, model, { prompt_tokens: (u.input_tokens || 0) + (u.cache_read_input_tokens || 0) + (u.cache_creation_input_tokens || 0), completion_tokens: u.output_tokens || 0 });
+      entry.n = (u.input_tokens || 0) + (u.output_tokens || 0) || entry.n;
+      const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+      if (!text.trim()) throw new LlmError('LLM returned empty content');
+      this.stats.lastLatencyMs = Date.now() - t0;
+      return text.trim();
     } catch (e) {
       if (e.name === 'AbortError') { const err = new LlmError('LLM timeout'); err.status = 408; throw err; }
       throw e;

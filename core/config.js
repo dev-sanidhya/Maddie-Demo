@@ -109,12 +109,17 @@ module.exports = {
   // Extra Cloudflare accounts (CF_ACCOUNT_ID_2 / CF_API_TOKEN_2, then _3 ... _8): when one account's
   // daily free allowance is used up, the next one takes over automatically.
   if (useCloudflare) {
-    for (let i = 2; i <= 8; i++) {
+    for (let i = 2; i <= 12; i++) {
       const acct = env[`CF_ACCOUNT_ID_${i}`];
       const tok = env[`CF_API_TOKEN_${i}`];
       if (!acct || !tok) continue;
       L.providers.push({ name: `cloudflare-${i}`, baseUrl: `https://api.cloudflare.com/client/v4/accounts/${acct}/ai/v1`, apiKey: tok, models: [L.model, L.fallbackModel].filter(Boolean), visionModels: vision, tpm: L.tpm });
     }
+  }
+  // Claude straight from api.anthropic.com with a Claude Code OAuth token (no server in between). First in line when set.
+  if (env.CLAUDE_CODE_OAUTH_TOKEN) {
+    const m = env.CLAUDE_MODEL || 'claude-haiku-5-5';
+    L.providers.unshift({ name: 'claude', kind: 'anthropic', baseUrl: 'https://api.anthropic.com', apiKey: env.CLAUDE_CODE_OAUTH_TOKEN.replace(/\s+/g, ''), models: [m], visionModels: [m], tpm: 0 });
   }
   const backupKey = env.LLM_FALLBACK_API_KEY || (useCloudflare ? env.GROQ_API_KEY : '');
   if (backupKey) {
