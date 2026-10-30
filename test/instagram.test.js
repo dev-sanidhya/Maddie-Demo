@@ -502,7 +502,7 @@ test('ARCHIVE: every chat is stored under its own hash key, and the agent is giv
   assert.strictEqual(chatKey(IG_ID, 'u91'), chatKey(IG_ID, 'u91'), 'the key is stable');
   assert.match(chatKey(IG_ID, 'u91'), /^[0-9a-f]{24}$/);
   const stored = await app.store.archiveGet(chatKey(IG_ID, 'u91'));
-  assert.ok(stored && stored.msgs.length === 3 && stored.msgs[0].text.match(/Etimya|dm/), 'the earlier chat was stored by key, read back with one lookup');
+  assert.ok(stored && stored.msgs.length === 4 && stored.msgs[0].text.match(/Etimya|dm/) && /FIRST person/.test(stored.msgs[3].text), 'the earlier chat plus the new message are stored by key, read back with one lookup');
   const ev = (await app.store.all("SELECT lead_id, data FROM events WHERE type='concierge'")).map((e) => JSON.parse(e.data));
   assert.ok(ev.every((e) => /^[0-9a-f]{24}$/.test(e.chat)) && ev.every((e) => e.read_msgs >= 1), 'each decision records which chat key it read and how much');
 });
@@ -558,4 +558,56 @@ test('CONCIERGE reply checks: no confirmed call times, no bullet lists, nothing 
   assert.strictEqual(checkReply('Option 1 • reel • repost', g), '');
   assert.strictEqual(checkReply('a'.repeat(400), g), '');
   assert.strictEqual(checkReply('Thanks, the team will be in touch here shortly.', g), 'Thanks, the team will be in touch here shortly.');
+});
+
+test('CONCIERGE: a video or file is handed to the concierge with the whole chat, not answered with the canned "cannot open attachments" line', async () => {
+  const llm = conciergeLlm({ action: 'reply', reply: 'Got it, thanks for sending it over. The team will review it.', needs_team: true, why: 'sent the video the team asked for' });
+  const { app, graph } = await build({ thread: teamThread(), llm, agentMode: 'concierge' });
+  const ev = { object: 'instagram', entry: [{ id: IG_ID, time: Date.now(), messaging: [{ sender: { id: 'u96' }, recipient: { id: IG_ID }, timestamp: Date.now(), message: { mid: 'm_v1', attachments: [{ type: 'video', payload: { url: 'https://cdn.example.com/v.mp4' } }] } }] }] };
+  await app.instagram.handleWebhook(ev);
+  const lead = await app.store.getLeadByChat('ig:u96');
+  await settle(app, lead.id);
+  const out = sends(graph).map((g) => g.body.message.text);
+  assert.deepStrictEqual(out, ['Got it, thanks for sending it over. The team will review it.']);
+  assert.ok(!out.some((t) => /cannot open attachments/i.test(t)));
+  assert.match(llm.seen[0].messages[0].content, /\[sent a video\]/);
+});
+
+test('ARCHIVE LOOKUP: the assistant looks the chat up by its hash key and reads history that is only in the archive; each message once; the archive stays complete', async () => {
+  const { chatKey } = require('../core/chatkey');
+  const llm = conciergeLlm({ action: 'reply', reply: 'Noted, the team will look at it.', needs_team: false, why: 'x' });
+  const { app, graph } = await build({ llm, agentMode: 'concierge' }); // no live thread from Instagram: the history exists ONLY in the archive
+  const T = Date.now() - 5 * 86400000;
+  await app.store.archiveUpsert({ conv_id: 'c-arch', chat_key: chatKey(IG_ID, 'u98'), igsid: 'u98', username: 'someone', last_at: T + 7200000, msgs: [
+    { mid: 'a1', at: T, fromUs: true, text: 'Hi! We have a barter collab with Maison Attire for you, a talking story.' },
+    { mid: 'a2', at: T + 3600000, fromUs: false, text: 'Sounds interesting, what do I get?' },
+    { mid: 'a3', at: T + 7200000, fromUs: true, text: 'You keep the outfit they send.' },
+  ] });
+  await app.instagram.handleWebhook(msgEvent('u98', 'ok when do I have to post it', 'm_arch1'));
+  const lead = await app.store.getLeadByChat('ig:u98');
+  await settle(app, lead.id);
+  const prompt = llm.seen[0].messages[0].content;
+  assert.match(prompt, /TEAM \(a person\): Hi! We have a barter collab with Maison Attire/, 'history came from the archive, found by the hash key');
+  assert.match(prompt, /CUSTOMER: Sounds interesting, what do I get\?/);
+  assert.strictEqual((prompt.match(/You keep the outfit/g) || []).length, 1, 'each message appears once');
+  const ev = (await app.store.all("SELECT data FROM events WHERE lead_id=? AND type='concierge'", lead.id)).map((e) => JSON.parse(e.data))[0];
+  assert.strictEqual(ev.chat, chatKey(IG_ID, 'u98'));
+  assert.strictEqual(ev.archive_msgs, 3);
+  const after = await app.store.archiveGet(chatKey(IG_ID, 'u98'));
+  assert.deepStrictEqual(after.msgs.map((m) => m.text).slice(-2), ['ok when do I have to post it', 'Noted, the team will look at it.'], 'the new message and the reply were added to the archive under the same key');
+  assert.strictEqual(sends(graph).length, 1);
+});
+
+test('CONCIERGE reply checks: it never claims an action it did not take, and never promises an outcome the team has not decided', () => {
+  const { checkReply } = require('../core/concierge');
+  const g = 'chat';
+  for (const bad of ["We've resent our contact email, please check spam.", 'I have emailed the details to you.', 'We have booked the shoot for you.', "We'll check for paid opportunities and get back to you.", "I'll try to get you a better rate.", 'We just sent it again.']) assert.strictEqual(checkReply(bad, g), '', `should be rejected: ${bad}`);
+  for (const ok of ['Got it, I have passed this to the team and they will reply here.', 'Noted, the team will look into it and get back to you.', 'Thanks, the team will confirm the time with you.']) assert.strictEqual(checkReply(ok, g), ok, `should be allowed: ${ok}`);
+});
+
+test('CONCIERGE: it never repeats its own previous message word for word', () => {
+  const { checkReply } = require('../core/concierge');
+  const prev = 'Got it, we will have the team review your commercial details and get back to you shortly.';
+  assert.strictEqual(checkReply('Got it, we will have the team review your commercial details and get back to you shortly.', 'x', { previous: prev }), '');
+  assert.notStrictEqual(checkReply('Thanks, noted. Anything else you want the team to know?', 'x', { previous: prev }), '');
 });

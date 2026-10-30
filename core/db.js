@@ -310,6 +310,16 @@ class Store {
     const r = await this.get('SELECT * FROM ig_archive WHERE chat_key=?', chatKey);
     return r ? { ...r, msgs: JSON.parse(r.msgs) } : null;
   }
+  // Adds messages to a chat that is already in the archive (new customer messages, the assistant's replies, the team's replies).
+  async archiveAppend(chatKey, add) {
+    const r = await this.get('SELECT msgs FROM ig_archive WHERE chat_key=?', chatKey);
+    if (!r || !add || !add.length) return false;
+    const have = JSON.parse(r.msgs);
+    const seen = new Set(have.map((m) => m.mid).filter(Boolean));
+    const merged = have.concat(add.filter((m) => m && m.text && (!m.mid || !seen.has(m.mid)))).sort((a, b) => a.at - b.at);
+    await this.run('UPDATE ig_archive SET msgs=?, n=?, team_n=?, last_at=?, synced_at=? WHERE chat_key=?', JSON.stringify(merged), merged.length, merged.filter((m) => m.fromUs).length, merged.length ? merged[merged.length - 1].at : 0, Date.now(), chatKey);
+    return true;
+  }
   async archiveByIgsid(igsid) {
     const r = await this.get('SELECT * FROM ig_archive WHERE igsid=?', String(igsid));
     return r ? { ...r, msgs: JSON.parse(r.msgs) } : null;

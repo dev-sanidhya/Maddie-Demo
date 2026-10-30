@@ -324,6 +324,8 @@ class Instagram {
     const mine = await this.store.all("SELECT text FROM messages WHERE lead_id=? AND direction='out' ORDER BY id DESC LIMIT 6", lead.id);
     if (mine.some((r) => r.text === text || (r.text.length > 40 && r.text.startsWith(text.slice(0, 40))))) return;
     await this.store.addMessage({ lead_id: lead.id, direction: 'out', role: 'admin', text: text.slice(0, 4000), ext_id: mid, status: 'sent', processed: true });
+    const acct = this.cfg.accountId || (this.me && this.me.user_id) || this.engine.igAccountId;
+    if (acct) await this.store.archiveAppend(chatKey(acct, customerId), [{ mid: mid || `local:echo${Date.now()}`, at: Date.now(), fromUs: true, text: text.slice(0, 4000) }]).catch(() => {});
     const meta = { ...lead.meta, team_thread: true, team_last_at: Date.now() };
     await this.store.updateLead(lead.id, { meta, last_outbound_at: Date.now() });
     await this.store.addEvent(lead.id, 'team_message', {});
@@ -451,6 +453,7 @@ class Instagram {
     this.status.lastWebhookAt = Date.now();
     const events = [];
     for (const entry of (payload && payload.entry) || []) {
+      if (entry.id) this.engine.igAccountId = String(entry.id);
       for (const ev of entry.messaging || []) events.push({ ev, igId: String(entry.id || (ev.recipient && ev.recipient.id) || '') });
     }
     // Referrals first, so a message in the same batch lands on the right lead.
@@ -501,6 +504,11 @@ class Instagram {
             handled++;
           }
           if (handled) return;
+        }
+        // The concierge decides what to say about a video, file or link from the whole chat (a video the team asked for is not "something I cannot open").
+        if (this.config.agentMode === 'concierge') {
+          await this.engine.receive({ channel: this.channel, chatId, text: `[sent ${MEDIA[kind]}]`, profile: prof, externalId: ev.message.mid || null, token: ref });
+          return;
         }
         try { await this.store.addMessage({ lead_id: lead.id, direction: 'in', role: 'user', text: `[sent ${MEDIA[kind]}]`, ext_id: ev.message.mid || null, processed: true }); } catch { return; }
         await this.store.updateLead(lead.id, { last_inbound_at: Date.now() });

@@ -332,9 +332,13 @@ class Engine extends EventEmitter {
       // so the customer waits for the slower of the two instead of both.
       const conciergeOn = this.config.agentMode === 'concierge' && lead.channel === 'instagram';
       let conciergeRows = null;
+      let conciergeCtx = null;
       let conciergeP = null;
+      const accountId = this.config.instagram.accountId || this.igAccountId || '';
       if (conciergeOn) {
-        conciergeRows = (await this.store.all('SELECT * FROM messages WHERE lead_id=? AND id<? ORDER BY id DESC LIMIT 120', leadId, rowIds[0])).reverse().concat(rows);
+        // look the chat up by its hash key in the archive, then add what has happened since
+        conciergeCtx = await this.concierge.loadChat({ lead, newRows: rows, accountId });
+        conciergeRows = conciergeCtx.rows;
         conciergeP = this.concierge.respond({ lead, rows: conciergeRows, settings }).catch((e) => ({ action: 'handoff', text: '', needsTeam: true, why: `AI error: ${String(e.message).slice(0, 100)}`, failed: true, error: String(e.message).slice(0, 200) }));
       }
 
@@ -383,11 +387,11 @@ class Engine extends EventEmitter {
         const out = await conciergeP;
         if (out.error) await this.store.addEvent(lead.id, 'llm_error', { step: 'concierge', error: out.error });
         if (out.failed) aiFailed = true;
-        const key = chatKey(this.config.instagram.accountId || '', String(lead.chat_id).replace(/^ig:/, ''));
+        const key = conciergeCtx.key;
         const meta2 = { ...lead.meta, concierge: { at: Date.now(), action: out.action, why: out.why, needs_team: !!out.needsTeam } };
         await this.store.updateLead(lead.id, { meta: meta2 });
         lead = { ...lead, meta: meta2 };
-        await this.store.addEvent(lead.id, 'concierge', { action: out.action, why: out.why, needs_team: !!out.needsTeam, chat: key, read_msgs: conciergeRows.length, ...(this.config.agentShadow && out.text ? { draft: out.text } : {}) });
+        await this.store.addEvent(lead.id, 'concierge', { action: out.action, why: out.why, needs_team: !!out.needsTeam, chat: key, read_msgs: conciergeRows.length, archive_msgs: conciergeCtx.archiveN, from_archive: conciergeCtx.fromArchive, live_msgs: conciergeCtx.liveN, ...(this.config.agentShadow && out.text ? { draft: out.text } : {}) });
         reply = this.config.agentShadow ? null : (out.text || null); // shadow mode: the draft is kept on the history, nothing is sent
         decision = { ...decision, directive: reply ? { type: 'CONCIERGE' } : null };
       } else {
@@ -406,6 +410,7 @@ class Engine extends EventEmitter {
       const out = await this.commitTurn({ lead, decision, reply, rowIds, prevStage, changed: applied.changed, aiFailed });
       this.changed('lead', leadId);
       if (out.messageId) await this.deliver(out.messageId).catch(() => {});
+      if (conciergeOn) await this.concierge.remember({ lead, rows, messageId: out.messageId, accountId }); // keep the archive complete under the same key
       await this.sideEffects(out.lead, prevStage, decision, applied.changed);
       this.bg(this.maybeSummarize(leadId));
     } finally {
