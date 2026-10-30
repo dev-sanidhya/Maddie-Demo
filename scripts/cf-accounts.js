@@ -17,7 +17,7 @@ const { execFileSync } = require('node:child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 const ENV_FILE = path.join(ROOT, '.env');
-const MAX_SLOT = 8; // keep in step with core/config.js
+const MAX_SLOT = 12; // keep in step with core/config.js
 const args = process.argv.slice(2);
 const cmd = args[0];
 const flag = (f) => args.includes(f);

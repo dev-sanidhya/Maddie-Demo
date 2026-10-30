@@ -72,7 +72,7 @@ async function runChat(plan, shared) {
   const sent = []; let counter = 0;
   const fetchImpl = async (url, init = {}) => {
     const u = String(url);
-    if (/api\.cloudflare\.com/.test(u)) return fetch(url, init);
+    if (!/graph\.(instagram|facebook)\.com/.test(u)) return fetch(url, init);
     let data = { message_id: `m_out${++counter}` };
     if (/\/me\?/.test(u)) data = { user_id: IG, username: 'gladucamepr' };
     else if (/\/me\/conversations/.test(u)) data = { data: [{ id: `c:${plan.igsid}` }] };
@@ -94,6 +94,7 @@ async function runChat(plan, shared) {
   const rows = []; const flags = []; const botSoFar = []; const asked = [];
 
   for (const [bi, b] of plan.bursts.entries()) {
+    if (shared.quotaOut) { rows.push({ ...b, replies: [], action: 'NOT RUN', why: 'AI allowance exhausted', secs: 0, flags: [], notRun: true }); continue; }
     const n0 = sent.length; const t0 = Date.now();
     const allText = [grounding, ...thread.map((m) => m.message), b.texts.join('\n')].join('\n');
     for (const [i, text] of b.texts.entries()) {
@@ -107,6 +108,8 @@ async function runChat(plan, shared) {
     await app.engine.idle(lead.id); await sleep(500); await app.engine.idle(lead.id);
     const ev = (await app.store.all("SELECT data FROM events WHERE lead_id=? AND type='concierge' ORDER BY id DESC LIMIT 1", lead.id)).map((e) => JSON.parse(e.data))[0] || {};
     const replies = sent.slice(n0);
+    const errs = (await app.store.all("SELECT data FROM events WHERE lead_id=? AND type='llm_error' ORDER BY id DESC LIMIT 3", lead.id)).map((e) => String(JSON.parse(e.data).error || ''));
+    if (errs.some((e) => /allocation|neurons|429/i.test(e)) && !replies.length) { shared.quotaOut = true; rows.push({ ...b, replies: [], action: 'NOT RUN', why: 'AI allowance exhausted during this message', secs: 0, flags: [], notRun: true }); continue; }
     const f = [];
     if (replies.length > 1) f.push(`SENT ${replies.length} REPLIES to one burst`);
     for (const r of replies) { f.push(...audit(r, { allText, teamFirst, prevBot: botSoFar[botSoFar.length - 1], askedBot: asked, theirText: b.texts.join(' '), now })); botSoFar.push(r); for (const q of r.match(/[^.!?]*\?/g) || []) asked.push(norm(q)); }
@@ -115,7 +118,7 @@ async function runChat(plan, shared) {
   }
 
   let verdict = {};
-  try {
+  if (process.env.JUDGE === '0' || shared.quotaOut) verdict = { verdict: 'not judged' }; else try {
     const transcript = thread.map((m) => `${m.from.id === IG ? (sent.includes(m.message) ? 'ASSISTANT' : 'TEAM') : 'CUSTOMER'}: ${m.message}`).join('\n');
     const raw = await app.agent.llm.complete({
       system: `You review the ASSISTANT lines (written by an AI) in an Instagram DM chat for a PR and influencer marketing agency. TEAM lines are human colleagues, CUSTOMER is the other person. Judge ONLY the ASSISTANT lines and fail a chat only for a CLEAR violation of these rules: contradicts or ignores what the chat already established; re-introduces itself or asks what it already knows or what a person the team approached would never be asked (what service, which city); repeats itself; invents facts, prices, dates, emails or links; agrees to, refuses or negotiates a creator's fee; settles a call time itself (saying the team will confirm a time is CORRECT); claims to be human. These are all FINE and must not be failed: quoting the agency's own retainer or project prices to a BUSINESS that asked for our services (the approved prices are Rs 1,00,000 per month for PR retainers and Rs 60,000 per project, plus GST); saying the team will confirm or follow up; staying silent on a bare "ok" or "thanks"; short acknowledgements. Reply with ONLY JSON: {"score": 1-5, "verdict": "pass" or "fail", "problems": ["short problem with the exact assistant line"]}`,
@@ -198,6 +201,7 @@ function render(results, title) {
     out.push(`## @${r.plan.user} (${r.plan.label}) ${r.teamFirst ? '[the team spoke first]' : '[the customer spoke first]'}`);
     out.push(`Context given to the AI: ${r.plan.context.length} earlier messages. Last two: ${r.plan.context.slice(-2).map((m) => `${m.fromUs ? 'TEAM' : 'THEM'}: ${m.text.slice(0, 90).replace(/\n/g, ' ')}`).join(' | ') || '(none)'}`);
     for (const [i, b] of r.rows.entries()) {
+      if (b.notRun) { out.push(''); out.push(`  ${i + 1}. THEM: ${b.texts.join(' / ').slice(0, 220).replace(/\n/g, ' ')}`); out.push('     NOT RUN (the free AI allowance ran out)'); continue; }
       turns++; if (b.replies.length) replied++; else silent++;
       out.push(`\n  ${i + 1}. THEM: ${b.texts.join(' / ').slice(0, 220).replace(/\n/g, ' ')}`);
       if (b.old && b.old.length) { oldReplies++; out.push(`     OLD AGENT (what happened in production): ${b.old.join(' || ').slice(0, 260).replace(/\n/g, ' ')}`); }
@@ -223,11 +227,13 @@ function render(results, title) {
   if (!['incidents', 'history'].includes(mode)) { console.log('usage: regress-real.js incidents|history [options] [usernames]'); process.exit(1); }
   const prod = await Store.open({ url: config.databaseUrl, file: config.dbPath });
   const shared = { playbook: await prod.kvGet('playbook', ''), style: await prod.kvGet('team_style', []) };
-  const plans = mode === 'incidents' ? await planIncidents(prod, only) : await planHistory(prod, only, opt('cut', 11), opt('n', 6));
+  const cap = Number(process.env.MAX_BURSTS) || 0;
+  const plans0 = mode === 'incidents' ? await planIncidents(prod, only) : await planHistory(prod, only, opt('cut', 11), opt('n', 6));
+  const plans = plans0.map((p) => (cap ? { ...p, bursts: p.bursts.slice(0, cap) } : p));
   console.log(`model: ${config.llm.model} (fallback ${config.llm.fallbackModel}) | ${plans.length} chats | ${plans.reduce((a, p) => a + p.bursts.length, 0)} real customer bursts`);
   for (const p of plans) console.log(`  @${p.user} (${p.label}): ${p.context.length} context msgs, ${p.bursts.length} bursts`);
   const results = []; let next = 0;
-  async function worker() { while (next < plans.length) { const p = plans[next++]; const t0 = Date.now(); try { const r = await runChat(p, shared); results.push(r); console.log(`done @${p.user} in ${Math.round((Date.now() - t0) / 1000)}s: ${r.flags.length} flag(s), judge ${r.verdict.verdict || '?'} ${r.verdict.score || ''}`); } catch (e) { console.log(`failed @${p.user}: ${e.stack || e.message}`); } } }
+  async function worker() { while (next < plans.length) { if (shared.quotaOut) break; const p = plans[next++]; const t0 = Date.now(); try { const r = await runChat(p, shared); results.push(r); console.log(`done @${p.user} in ${Math.round((Date.now() - t0) / 1000)}s: ${r.flags.length} flag(s), judge ${r.verdict.verdict || '?'} ${r.verdict.score || ''}`); } catch (e) { console.log(`failed @${p.user}: ${e.stack || e.message}`); } } }
   await Promise.all(Array.from({ length: CONCURRENCY }, worker));
   results.sort((a, b) => plans.indexOf(a.plan) - plans.indexOf(b.plan));
   const rep = render(results, mode === 'incidents' ? 'Replay of the real incidents from production (old agent vs new agent)' : `Older real chats, AI from message ${opt('cut', 11) + 1}, real customer messages only`);
