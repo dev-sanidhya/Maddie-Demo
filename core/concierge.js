@@ -204,7 +204,7 @@ class Concierge {
     const mineOut = [...rows].reverse().filter((m) => m.direction === 'out' && m.role !== 'admin');
     const previous = (mineOut[0] || {}).text || '';
     const recent = mineOut.slice(0, 2).map((m) => m.text);
-    const grounding = [facts, playbook, rows.map((m) => m.text).join('\n'), factsLine(lead)].join('\n');
+    const grounding = [facts, playbook, rows.map((m) => m.text).join('\n'), factsLine(lead), 'budget range: under 5 lakhs, 5 to 10 lakhs, above 10 lakhs'].join('\n');
 
     let lastWhy = '';
     let feedback = '';
