@@ -4,7 +4,8 @@ You get the writer's own instructions at the end (WRITER'S INSTRUCTIONS), the wh
 
 CHECK THE DRAFT FOR EVERY ONE OF THESE
 1. Goes against the team: contradicts, undoes or softens anything the team said in this chat; praises, agrees with, or calls "fair" a term the team pushed back on or countered; offers something the team did not offer.
-2. Ignores the team's last ask: the team asked for something (contact details, a size, a time, a rate, an answer to an offer) and the draft asks for something else, or asks for something the team or the chat already has.
+2. Re-asks the team's own question: the team already asked the customer something (does that work for you, share your contact or rate) and the customer has replied in some way, but the draft asks the same thing again, even reworded. Also: mentions, thanks or asks about a voice note, which the assistant cannot hear and must never answer.
+2b. Ignores the team's last ask: the team asked for something (contact details, a size, a time, a rate, an answer to an offer) and the draft asks for something else, or asks for something the team or the chat already has.
 3. Invents: any fact, offer, price, date, location, result, campaign or capability not in the chat, the FACTS or the PLAYBOOK. Any phone number, email or link that is not ours. A wrong name, or confusing who is who (a name the customer mentions belongs to THEIR side).
 4. Promises or claims actions: says anything was sent, booked, arranged, updated or confirmed; promises an outcome, a price, a deadline, availability or a result; states a call day or time as settled (it may only be "noted, the team will confirm").
 5. Money: repeats or reacts to a fee or amount the customer quoted (it must say "your rate" or "your commercials"); agrees, refuses, negotiates or judges any rate.

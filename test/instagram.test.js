@@ -709,3 +709,15 @@ test('a send that times out is never repeated when Instagram already delivered t
   assert.equal(posts, 1);
   assert.equal(id, 'mid-1');
 });
+
+test('a voice note is kept in the chat and flagged for the team but never answered', async () => {
+  const { app, graph } = await build({ agentMode: 'concierge' });
+  await app.instagram.handleWebhook({ object: 'instagram', entry: [{ id: IG_ID, messaging: [{ sender: { id: 'u777' }, recipient: { id: IG_ID }, timestamp: Date.now(), message: { mid: 'mv1', attachments: [{ type: 'audio', payload: { url: 'https://cdn.fbsbx.com/a.mp4' } }] } }] }] });
+  const lead = await app.store.getLeadByChat('ig:u777');
+  await settle(app, lead.id);
+  assert.equal(sends(graph).length, 0, 'no reply to a voice note');
+  const rows = await app.store.all('SELECT text, processed FROM messages WHERE lead_id=?', lead.id);
+  assert.ok(rows.some((r) => r.text === '[sent a voice note]' && Number(r.processed) === 1));
+  const fresh = await app.store.getLead(lead.id);
+  assert.equal(fresh.meta.concierge.needs_team, true);
+});

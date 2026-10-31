@@ -524,6 +524,17 @@ class Instagram {
           }
           if (handled) return;
         }
+        // A voice note is never answered: the assistant cannot hear it. It is kept in the chat (so the team and later turns see it), marked
+        // as handled so no reply is written, and the chat is flagged for a teammate to listen.
+        if (kind === 'audio' && this.config.agentMode === 'concierge') {
+          try { await this.store.addMessage({ lead_id: lead.id, direction: 'in', role: 'user', text: '[sent a voice note]', ext_id: ev.message.mid || null, processed: true }); } catch { return; }
+          await this.store.updateLead(lead.id, { last_inbound_at: Date.now() });
+          await this.store.addEvent(lead.id, 'voice_note_not_answered', {});
+          const meta = { ...(lead.meta || {}), concierge: { ...((lead.meta && lead.meta.concierge) || {}), at: Date.now(), action: 'silent', why: 'Customer sent a voice note. The assistant does not answer voice notes; a teammate should listen to it.', needs_team: true } };
+          await this.store.updateLead(lead.id, { meta });
+          this.engine.changed('message', lead.id);
+          return;
+        }
         // The concierge decides what to say about a video, file or link from the whole chat (a video the team asked for is not "something I cannot open").
         if (this.config.agentMode === 'concierge') {
           await this.engine.receive({ channel: this.channel, chatId, text: `[sent ${MEDIA[kind]}]`, profile: prof, externalId: ev.message.mid || null, token: ref });
