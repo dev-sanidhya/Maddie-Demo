@@ -337,6 +337,12 @@ class Engine extends EventEmitter {
       const accountId = this.config.instagram.accountId || this.igAccountId || '';
       if (conciergeOn) {
         // look the chat up by its hash key in the archive, then add what has happened since
+        // refresh the saved chat from Instagram first (writes through to the archive), so edits, unsent messages and anything the team
+        // wrote from the app are in what the assistant reads. A slow or failing refresh never blocks the reply.
+        const igT = lead.channel === 'instagram' ? this.transportFor(lead) : null;
+        if (igT && igT.fetchThread) {
+          await Promise.race([igT.fetchThread(String(lead.chat_id || '').replace(/^ig:/, ''), 40), new Promise((r) => setTimeout(r, 6000))]).catch(() => {});
+        }
         conciergeCtx = await this.concierge.loadChat({ lead, newRows: rows, accountId });
         conciergeRows = conciergeCtx.rows;
         conciergeP = this.concierge.respond({ lead, rows: conciergeRows, settings }).catch((e) => ({ action: 'handoff', text: '', needsTeam: true, why: `AI error: ${String(e.message).slice(0, 100)}`, failed: true, error: String(e.message).slice(0, 200) }));

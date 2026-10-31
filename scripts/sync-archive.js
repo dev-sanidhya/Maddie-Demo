@@ -37,8 +37,15 @@ async function get(url, tries = 5) {
   const convs = [];
   let url = `${G}/me/conversations?platform=instagram&limit=50&fields=id,updated_time,participants`;
   while (url && convs.length < max) {
-    let page;
-    try { page = await get(url); } catch (e) { console.log(`listing stopped at ${convs.length}: ${e.message} (rerun later for the rest)`); break; }
+    // Instagram rate-limits long listings. Wait and retry the SAME page instead of giving up, so the list reaches the very end.
+    let page = null;
+    for (let tries = 1; tries <= 10 && !page; tries++) {
+      try { page = await get(url); } catch (e) {
+        if (tries === 10) console.log(`listing stopped at ${convs.length}: ${e.message}`);
+        else { console.log(`rate limited at ${convs.length}, waiting 60s (${tries}/10)`); await sleep(60000); }
+      }
+    }
+    if (!page) break;
     for (const c of page.data || []) {
       const cust = ((c.participants && c.participants.data) || []).find((p) => !ours.has(String(p.id)));
       convs.push({ id: c.id, last_at: Date.parse(c.updated_time) || 0, igsid: cust && String(cust.id), username: cust && cust.username });

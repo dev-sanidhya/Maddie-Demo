@@ -174,7 +174,10 @@ class Concierge {
     const key = accountId && igsid ? chatKey(accountId, igsid) : null;
     const arch = key ? await this.store.archiveGet(key) : null;
     const live = (await this.store.all('SELECT * FROM messages WHERE lead_id=? AND id<? ORDER BY id DESC LIMIT 120', lead.id, newRows.length ? newRows[0].id : 2 ** 53)).reverse();
-    const current = live.concat(newRows);
+    // A customer can edit a message after we received it; the archive holds the newest text, so for the same message id it wins.
+    const archText = new Map(((arch && arch.msgs) || []).filter((m) => !m.fromUs && m.mid).map((m) => [m.mid, m.text]));
+    const fresh = (r) => (r.direction === 'in' && r.ext_id && archText.has(r.ext_id) && archText.get(r.ext_id) !== r.text ? { ...r, text: archText.get(r.ext_id) } : r);
+    const current = live.concat(newRows).map(fresh);
     const liveMids = new Set(current.map((r) => r.ext_id).filter(Boolean));
     const fromArchive = ((arch && arch.msgs) || [])
       .map((m) => ({ direction: m.fromUs ? 'out' : 'in', role: m.fromUs ? 'admin' : 'user', text: m.text, created_at: Number(m.at), ext_id: m.mid, id: 0 }))
