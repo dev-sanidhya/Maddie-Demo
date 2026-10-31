@@ -693,3 +693,19 @@ test('editor pass: a faulty draft is replaced by the corrected reply, and a fail
   assert.match(out2.text, /commercials/);
   assert.equal(out2.judge.verdict, 'send');
 });
+
+test('a send that times out is never repeated when Instagram already delivered the message', async () => {
+  const { app } = await build();
+  let posts = 0;
+  const ig = app.instagram;
+  ig.fetch = async (url, init = {}) => {
+    const u = String(url);
+    if (/\/me\/messages/.test(u) && init.method === 'POST') { posts++; return { ok: false, status: 500, json: async () => ({ error: { message: 'Internal error' } }) }; }
+    if (/\/me\/conversations/.test(u)) return { ok: true, status: 200, json: async () => ({ data: [{ id: 'c1' }] }) };
+    if (/\/c1\?/.test(u)) return { ok: true, status: 200, json: async () => ({ messages: { data: [{ id: 'mid-1', created_time: new Date().toISOString(), from: { id: IG_ID }, message: 'Hello there' }] } }) };
+    return { ok: true, status: 200, json: async () => ({ message_id: 'm_x' }) };
+  };
+  const id = await ig.sendText({ chat_id: 'ig:555', last_inbound_at: Date.now() }, 'Hello there', { role: 'admin' });
+  assert.equal(posts, 1);
+  assert.equal(id, 'mid-1');
+});

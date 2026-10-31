@@ -74,7 +74,9 @@ class Instagram {
   chatLink(ref) { return this.handle ? `https://ig.me/m/${this.handle}${ref ? `?ref=${encodeURIComponent(ref)}` : ''}` : null; }
 
   // ---------- Graph API ----------
-  async api(method, path, { body, query } = {}, { retries = 3 } = {}) {
+  // once: for calls that must never run twice (sending a message). A rate limit may be retried (nothing was delivered), but a timeout or a
+  // server error is ambiguous: Instagram may have delivered the message anyway, so the caller gets error.ambiguous and decides.
+  async api(method, path, { body, query } = {}, { retries = 3, once = false } = {}) {
     await this.loadToken();
     if (!this.token) throw new InstagramError('Instagram is not configured', { permanent: true });
     const qs = query ? `?${new URLSearchParams(query)}` : '';
@@ -97,13 +99,18 @@ class Instagram {
         // 190 = token invalid/expired, 10/200 = permission, 100 = bad request, 551/2534014 = user unreachable, 613/4/17/32 = rate limits
         const rateLimited = [4, 17, 32, 613].includes(code) || res.status === 429;
         if (rateLimited) { lastErr = new InstagramError(msg, { status: res.status, code }); await sleep(1500 * 2 ** attempt); continue; }
-        if (res.status >= 500) { lastErr = new InstagramError(msg, { status: res.status, code }); await sleep(500 * 2 ** attempt); continue; }
+        if (res.status >= 500) {
+          lastErr = new InstagramError(msg, { status: res.status, code });
+          if (once) { lastErr.ambiguous = true; throw lastErr; }
+          await sleep(500 * 2 ** attempt); continue;
+        }
         // A dead token is noticed on the first failed call, so the inbox can ask the studio to reconnect.
         if (code === 190) { this.status.connected = false; this.status.lastError = msg; this.probed = { at: Date.now(), value: { connected: false, reason: 'expired', error: msg } }; }
         throw new InstagramError(msg, { permanent: true, status: res.status, code });
       } catch (e) {
-        if (e instanceof InstagramError && e.permanent) throw e;
+        if (e instanceof InstagramError && (e.permanent || e.ambiguous)) throw e;
         lastErr = e instanceof InstagramError ? e : new InstagramError(e.name === 'AbortError' ? 'Instagram request timed out' : e.message);
+        if (once) { lastErr.ambiguous = true; throw lastErr; }
         await sleep(500 * 2 ** attempt);
       } finally {
         clearTimeout(timer);
@@ -383,7 +390,19 @@ class Instagram {
     }
     let last;
     for (const part of chunk(text)) {
-      last = await this.api('POST', '/me/messages', { body: { recipient: { id: this.igsid(lead) }, message: { text: part }, ...extra } });
+      const send = () => this.api('POST', '/me/messages', { body: { recipient: { id: this.igsid(lead) }, message: { text: part }, ...extra } }, { once: true });
+      const startedAt = Date.now();
+      try {
+        last = await send();
+      } catch (e) {
+        if (!e.ambiguous) throw e;
+        // The request failed in a way that does not tell us whether the message left. Look at the chat before sending again, so a message
+        // that was delivered is never sent a second or third time.
+        await sleep(2500);
+        const thread = await this.fetchThread(this.igsid(lead), 8);
+        const hit = [...thread].reverse().find((m) => m.fromUs && m.text === part.trim() && m.at >= startedAt - 15000);
+        last = hit ? { message_id: hit.mid } : await send();
+      }
     }
     return last && last.message_id;
   }
