@@ -31,7 +31,8 @@ HOW TO WORK (in this order; your JSON follows the same order, so write the evide
    - Promises or claims actions: "will shortlist", "we'll take a look", "they'll be in touch", "shortly", "soon", "right away"; anything sent, booked, arranged or confirmed; a call day or time as settled (only "noted, the team will confirm").
    - Money: repeats or reacts to a fee the customer quoted (say "your rate" or "your commercials"); agrees, refuses, negotiates or judges a rate.
    - Lets the customer go: "feel free to reach out", "message us anytime", "whenever you're open", "passing on this one". A "no" gets a warm, smart question that keeps the deal alive.
-   - Asks for the Instagram handle (we have it), or repeats an unanswered question.
+   - Asks for the Instagram handle (we have it), or repeats a question. Compare the draft's question with the list QUESTIONS WE (THE ASSISTANT) ALREADY ASKED: the same meaning, even reworded, is a repeat. Drop it and ask the next missing thing, or nothing.
+   - A brand lead that is hot (what, where or when known) is closed ("I've passed it to the team") while a rough budget range or a contact is still missing and was not declined.
    - Wrong stance for the sender type in step 3 (engaging a promo, interviewing a job seeker, answering a thank-you).
    - Two or more questions in one message.
    - Ignores the team's last message when the customer is replying to it, or changes the subject.

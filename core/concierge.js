@@ -82,7 +82,12 @@ const wordSet = (x) => new Set(String(x).toLowerCase().replace(/[^a-z0-9ऀ-ॿ\
 function similar(a, b) { const A = wordSet(a), B = wordSet(b); if (!A.size || !B.size) return 0; let i = 0; for (const w of A) if (B.has(w)) i++; return i / (A.size + B.size - i); }
 
 // The assistant cannot promise when the team will act, so timing adverbs are dropped from whatever is sent ("will reply shortly" becomes "will reply").
-const tidy = (t) => String(t || '').replace(/[ ]+(?:shortly|right away|very soon|in no time)(?=[.,!?]| |$)/gi, '').replace(/ {2,}/g, ' ').trim();
+// at most ONE question per message: later questions are dropped, the statements stay
+const oneQuestion = (t) => { let seen = false; return t.split(/(?<=[.!?]) +/).filter((p) => { if (!p.endsWith('?')) return true; if (seen) return false; seen = true; return true; }).join(' '); };
+const tidy = (t) => oneQuestion(String(t || '').replace(/[ ]+(?:shortly|right away|very soon|in no time)(?=[.,!?]| |$)/gi, '').replace(/ {2,}/g, ' ').trim());
+// the questions the assistant itself asked in its last few messages, so the writer and the editor can see what was already asked
+const QRX = new RegExp('[^.!?]*[?]', 'g');
+const askedList = (rows) => [...rows].reverse().filter((m) => m.direction === 'out' && m.role !== 'admin').slice(0, 4).reverse().flatMap((m) => (String(m.text).match(QRX) || []).map((q) => q.trim())).slice(-6);
 
 function checkReply(text, grounding, { previous = '', recent = [], contactGrounding } = {}) {
   let t = String(text || '')
@@ -150,7 +155,7 @@ class Concierge {
 
   // The editor: a second pass that reads the whole chat and the draft before anything is sent. Returns { verdict: 'send' | 'fix', issues, reply }.
   // If the editor itself cannot run, the draft (which already passed the code checks) goes out, so a reply is never lost.
-  async review({ writerPrompt, settings, lead, rows, tz, now, facts, playbook, draft }) {
+  async review({ writerPrompt, settings, lead, rows, tz, now, facts, playbook, draft, asked = [] }) {
     try {
       const system = loadJudge().split('{{BUSINESS}}').join(settings.business.name).split('{{WRITER}}').join(writerPrompt);
       const newest = [...rows].reverse().findIndex((m) => m.direction === 'out');
@@ -158,6 +163,7 @@ class Concierge {
       const user = 'CONVERSATION SO FAR (oldest first):' + String.fromCharCode(10) + transcript(rows, tz, now)
         + String.fromCharCode(10, 10) + 'WHAT WE ALREADY KNOW ABOUT THEM: ' + factsLine(lead)
         + String.fromCharCode(10, 10) + "THE CUSTOMER'S NEW MESSAGE(S): " + unanswered.map((m) => '"' + clip(m.text, 500) + '"').join(' ')
+        + (asked.length ? String.fromCharCode(10, 10) + 'QUESTIONS WE (THE ASSISTANT) ALREADY ASKED IN THIS CHAT: ' + asked.map((q) => '"' + q + '"').join(' ') : '')
         + String.fromCharCode(10, 10) + 'DRAFT REPLY TO REVIEW: "' + draft + '"';
       const raw = await this.llm.complete({ system, messages: [{ role: 'user', content: user }], json: true, temperature: 0.1, maxTokens: 1500, thinking: Number(process.env.JUDGE_THINKING) || 0 });
       const out = typeof raw === 'object' && raw ? raw : extractJson(raw);
@@ -203,7 +209,11 @@ class Concierge {
     const system = systemPrompt({ settings, playbook, style, now }).replace('{FACTS}', facts);
     const newest = [...rows].reverse().findIndex((m) => m.direction === 'out');
     const unanswered = newest === -1 ? rows.filter((m) => m.direction === 'in') : rows.slice(rows.length - newest).filter((m) => m.direction === 'in');
-    const user = `CONVERSATION SO FAR (oldest first):\n${transcript(rows, tz, now)}\n\nWHAT WE ALREADY KNOW ABOUT THEM (from our notes): ${factsLine(lead)}\n\nTHE CUSTOMER'S NEW MESSAGE${unanswered.length > 1 ? 'S' : ''} TO DEAL WITH: ${unanswered.map((m) => `"${clip(m.text, 500)}"`).join(' ')}\n\nDecide and answer in the JSON format.`;
+    const asked = askedList(rows);
+    const lastInRow = [...rows].reverse().find((m) => m.direction === 'in');
+    const customerAsked = !!(lastInRow && String(lastInRow.text).includes('?'));
+    const user0 = `CONVERSATION SO FAR (oldest first):\n${transcript(rows, tz, now)}\n\nWHAT WE ALREADY KNOW ABOUT THEM (from our notes): ${factsLine(lead)}\n\nTHE CUSTOMER'S NEW MESSAGE${unanswered.length > 1 ? 'S' : ''} TO DEAL WITH: ${unanswered.map((m) => `"${clip(m.text, 500)}"`).join(' ')}\n\nDecide and answer in the JSON format.`;
+    const user = asked.length ? user0.replace('Decide and answer in the JSON format.', 'QUESTIONS WE ALREADY ASKED IN THIS CHAT (never ask any of these again, even reworded, if the customer has not answered it; ask the next missing thing instead): ' + asked.map((q) => '"' + q + '"').join(' ') + String.fromCharCode(10, 10) + 'Decide and answer in the JSON format.') : user0;
     const mineOut = [...rows].reverse().filter((m) => m.direction === 'out' && m.role !== 'admin');
     const previous = (mineOut[0] || {}).text || '';
     const recent = mineOut.slice(0, 2).map((m) => m.text);
@@ -223,14 +233,16 @@ class Concierge {
       if (!out || !['reply', 'silent', 'handoff'].includes(out.action)) { if (process.env.CONCIERGE_DEBUG) console.error('[unreadable] ' + JSON.stringify(typeof raw === 'string' ? raw.slice(0, 1500) : raw)); lastWhy = 'unreadable answer'; continue; }
       const why = clip(out.why, 200);
       const needsTeam = out.needs_team === true || out.action === 'handoff';
+      if (out.action === 'silent' && customerAsked && attempt < 2) { feedback = 'The customer asked a question, so staying silent is wrong. Answer it.'; lastWhy = 'silent on a question'; continue; }
       if (out.action === 'silent' || !String(out.reply || '').trim()) return { action: out.action === 'handoff' ? 'handoff' : 'silent', text: '', needsTeam, why };
       const text = checkReply(out.reply, grounding, { previous, recent, contactGrounding: [facts, playbook].join(' ') });
       if (text) {
         const t0 = Date.now();
-        const rv = await this.review({ writerPrompt: system, settings, lead, rows, tz, now, facts, playbook, draft: text });
+        const rv = await this.review({ writerPrompt: system, settings, lead, rows, tz, now, facts, playbook, draft: text, asked });
         if (process.env.CONCIERGE_DEBUG) console.error('[judge] ' + rv.verdict + ' ' + (Date.now() - t0) + 'ms issues=' + (rv.issues || '') + (rv.skipped ? ' SKIPPED ' + rv.skipped : ''));
         if (rv.verdict === 'send') return { action: out.action, text: tidy(text), needsTeam, why, judge: { verdict: 'send', senderType: rv.senderType, ...(rv.skipped ? { skipped: rv.skipped } : {}) } };
-        if (rv.verdict === 'silent') return { action: 'silent', text: '', needsTeam: true, why: rv.why || why, judge: { verdict: 'silent', senderType: rv.senderType, issues: rv.issues, original: text } };
+        if (rv.verdict === 'silent' && !(customerAsked && !['vendor_or_promo', 'spam_or_bot'].includes(rv.senderType))) return { action: 'silent', text: '', needsTeam: true, why: rv.why || why, judge: { verdict: 'silent', senderType: rv.senderType, issues: rv.issues, original: text } };
+        if (rv.verdict === 'silent') return { action: out.action, text: tidy(text), needsTeam, why, judge: { verdict: 'send', senderType: rv.senderType, note: 'silent overridden: the customer asked a question' } };
         const fixed = rv.reply ? checkReply(rv.reply, grounding, { previous, recent, contactGrounding: [facts, playbook].join(' ') }) : '';
         if (fixed) return { action: out.action, text: tidy(fixed), needsTeam: needsTeam || rv.needsTeam, why: rv.why || why, judge: { verdict: 'fixed', senderType: rv.senderType, issues: rv.issues, original: text } };
         if (process.env.CONCIERGE_DEBUG) console.error('[editor] draft=' + JSON.stringify(text) + ' issues=' + rv.issues + ' fix=' + JSON.stringify(rv.reply) + ' fixPassed=' + !!fixed);
@@ -248,6 +260,18 @@ class Concierge {
     // anything that is not a bare sign-off (ok, thanks, sure, an emoji) is something the customer expects an answer to, even one word like Mumbai
     const signOff = /^(ok(ay)?|sure|thanks?( you)?|thank u|noted|done|cool|great|fine|yup|alright|perfect|got it|will do|hmm+|nice)[ !.,]*$/i;
     const substantive = lastIn && !signOff.test(String(lastIn.text).trim()) && /[a-z0-9]/i.test(String(lastIn.text));
+    if (substantive) {
+      try {
+        const tail = transcript(rows.slice(-10), tz, now);
+        const lr = await this.llm.complete({
+          system: 'You write ONE short, warm Instagram DM reply for ' + settings.business.name + '. Two short sentences at most, plain text. Acknowledge exactly what the customer just said in your own words, never repeat any amount, phone number, email or link, say the team will pick it up from here, ask nothing, and make no promise about when. Reply with the message text only.',
+          messages: [{ role: 'user', content: 'CHAT:' + String.fromCharCode(10) + tail + String.fromCharCode(10, 10) + 'Write the reply to the customer last message.' }],
+          temperature: 0.4, maxTokens: 300,
+        });
+        const cleaned = checkReply(String(lr).replace(/^["' ]+|["' ]+$/g, ''), grounding, { previous, recent, contactGrounding: [facts, playbook].join(' ') });
+        if (cleaned) return { action: 'reply', text: tidy(cleaned), needsTeam: true, why: 'plain reply after the full draft failed its checks (' + clip(lastWhy, 80) + ')', judge: { verdict: 'last_resort' } };
+      } catch { /* the canned line below still goes out */ }
+    }
     const holding = ['Thanks, noted. I have flagged this for the team.', 'Got it, thank you. The team will take it from here.', 'Noted, I will make sure the team sees this.'].find((h) => !recent.includes(h) && h !== previous) || '';
     return { action: 'handoff', text: substantive ? holding : '', needsTeam: true, why: lastWhy || 'could not write a safe reply', failed: true, held: !!(substantive && holding) };
   }

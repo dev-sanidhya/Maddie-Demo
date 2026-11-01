@@ -462,8 +462,8 @@ test('CONCIERGE: a reply that states a price nobody gave it is never sent; the c
   await settle(app, lead.id);
   const sentTexts = sends(graph).map((g) => g.body.message.text);
   assert.ok(!sentTexts.some((t) => /85,000/.test(t)), 'the invented price never went out');
-  assert.deepStrictEqual(sentTexts, ['Thanks, noted. I have flagged this for the team.'], 'only the safe holding line was sent');
-  assert.strictEqual(llm.seen.length, 3, 'it was asked to try again twice, then gave up');
+  assert.deepStrictEqual(sentTexts, ['Thanks, noted. What else can you tell me?'], 'only the plain last-resort reply was sent');
+  assert.strictEqual(llm.seen.length, 3, 'it was asked to try again twice, then gave up on the full draft');
 });
 
 test('CONCIERGE shadow mode: the draft is kept on the history and nothing is sent', async () => {
@@ -663,7 +663,7 @@ test('CONCIERGE: when every attempt is rejected the customer still gets a short 
   await app.instagram.handleWebhook(msgEvent('u99', 'Is it possible to get on a call with someone from the team?', 'm_h1'));
   const lead = await app.store.getLeadByChat('ig:u99');
   await settle(app, lead.id);
-  assert.deepStrictEqual(sends(graph).map((g) => g.body.message.text), ['Thanks, noted. I have flagged this for the team.']);
+  assert.deepStrictEqual(sends(graph).map((g) => g.body.message.text), ['Thanks, noted. What else can you tell me?']);
   await app.instagram.handleWebhook(msgEvent('u99', 'ok', 'm_h2'));
   await settle(app, lead.id);
   assert.strictEqual(sends(graph).length, 1, 'a bare ok gets nothing');
