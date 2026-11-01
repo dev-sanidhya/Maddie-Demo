@@ -4,12 +4,15 @@
 // Resumable: conversations that have not changed since the last run are skipped.
 //   node scripts/sync-archive.js            sync everything
 //   node scripts/sync-archive.js --max=300  stop after 300 conversations (a quick trial)
+//   node scripts/sync-archive.js --since-hours=24   only conversations with activity in the last 24 hours (the list is newest first, so it stops early)
 const config = require('../core/config');
 const { Store } = require('../core/db');
 const { chatKey } = require('../core/chatkey');
 const G = `https://graph.instagram.com/${config.instagram.apiVersion}`;
 const H = { Authorization: `Bearer ${config.instagram.accessToken}` };
 const max = Number((process.argv.find((a) => a.startsWith('--max=')) || '').slice(6)) || Infinity;
+const sinceH = Number((process.argv.find((a) => a.startsWith('--since-hours=')) || '').slice(14)) || 0;
+const cutoff = sinceH ? Date.now() - sinceH * 3600 * 1000 : 0;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function get(url, tries = 5) {
@@ -51,9 +54,11 @@ async function get(url, tries = 5) {
       convs.push({ id: c.id, last_at: Date.parse(c.updated_time) || 0, igsid: cust && String(cust.id), username: cust && cust.username });
     }
     url = page.paging && page.paging.next;
+    // newest first: once a page reaches conversations older than the cutoff, everything after it is older too
+    if (cutoff && (page.data || []).some((c) => (Date.parse(c.updated_time) || 0) < cutoff)) { console.log(`reached conversations older than ${sinceH}h, stopping the list`); url = null; }
     if (convs.length % 500 < 50) console.log(`listed ${convs.length}`);
   }
-  const todo = convs.slice(0, max).filter((c) => have.get(c.id) !== c.last_at);
+  const todo = convs.slice(0, max).filter((c) => (!cutoff || c.last_at >= cutoff) && have.get(c.id) !== c.last_at);
   console.log(`${convs.length} conversations listed, ${todo.length} to fetch`);
 
   let done = 0, failed = 0, i = 0;

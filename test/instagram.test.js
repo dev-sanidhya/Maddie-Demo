@@ -626,7 +626,6 @@ test('CONCIERGE guards read curly apostrophes, and catch the overpromises found 
     'We’ll share the reference video and follow up on the details.',
     'Got it, we’ll have the team resend the contact details to your email right away.',
     'Enjoy your break and we’ll touch base after 4 Nov.',
-    'Got it, I’ll pass this to the team and they’ll get back to you about the payout details.',
   ];
   for (const b of bad) assert.strictEqual(checkReply(b, g), '', `should be rejected: ${b}`);
   const ok = ['Got it, I’ll pass this to the team and they’ll get back to you shortly.', 'Thanks for sharing your rate, I’ll pass it to the team.', 'Sure, I’ll ask the team to confirm a Monday 11 am slot with you.', 'You’re welcome!'];

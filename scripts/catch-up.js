@@ -49,6 +49,16 @@ const say = (s) => console.log(s);
     reset.add(g.lead_id);
   }
 
+  // 1b. customers who wrote while the assistant was only recording (draft or hold mode): their last messages have no answer after them
+  const open = await store.all("SELECT m.id, m.lead_id FROM messages m WHERE m.direction='in' AND m.created_at>=? AND NOT EXISTS (SELECT 1 FROM messages o WHERE o.lead_id=m.lead_id AND o.direction='out' AND o.created_at>m.created_at AND o.status<>'failed')", since);
+  const byLead = new Map();
+  for (const r of open) byLead.set(r.lead_id, (byLead.get(r.lead_id) || []).concat(r.id));
+  for (const [leadId, ids] of byLead) {
+    say(`lead ${leadId}: ${ids.length} customer message(s) with no answer after them`);
+    if (!dry) for (const id of ids) await store.run('UPDATE messages SET processed=0 WHERE id=?', id);
+    reset.add(leadId);
+  }
+
   // 2. customer messages the database never received
   let injected = 0;
   if (!skipApi) {

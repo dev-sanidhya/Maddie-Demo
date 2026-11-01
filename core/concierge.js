@@ -81,6 +81,9 @@ function systemPrompt({ settings, playbook, style, now }) {
 const wordSet = (x) => new Set(String(x).toLowerCase().replace(/[^a-z0-9ऀ-ॿ\s]/g, ' ').split(/\s+/).filter((w) => w.length > 2));
 function similar(a, b) { const A = wordSet(a), B = wordSet(b); if (!A.size || !B.size) return 0; let i = 0; for (const w of A) if (B.has(w)) i++; return i / (A.size + B.size - i); }
 
+// The assistant cannot promise when the team will act, so timing adverbs are dropped from whatever is sent ("will reply shortly" becomes "will reply").
+const tidy = (t) => String(t || '').replace(/[ ]+(?:shortly|right away|very soon|in no time)(?=[.,!?]| |$)/gi, '').replace(/ {2,}/g, ' ').trim();
+
 function checkReply(text, grounding, { previous = '', recent = [], contactGrounding } = {}) {
   let t = String(text || '')
     .replace(/<think>[\s\S]*?<\/think>/gi, '')
@@ -113,7 +116,7 @@ function checkReply(text, grounding, { previous = '', recent = [], contactGround
   if (/\b(?:we|i)(?:'ll| will)\s+(?:also |then |gladly |definitely )?(?:look for|check for|find|get you|arrange|offer|try to get|negotiate|make it|increase|match|waive|discount|share|send|provide|forward you|set up|book|schedule|get back with|get back to you with|touch base)\b/i.test(g)) return '';
   if (/\b(?:have|get|ask) the team (?:to )?(?:resend|send|share|provide|arrange|set up|schedule|book|offer|look for|find)\b/i.test(g)) return '';
   if (/\b(?:we|i) can (?:set up|arrange|schedule|book|organi[sz]e|do)\b|\bworks? for (?:us|me|the team)\b|get back to you (?:after|by|before|on|once)\b|after the \d+(?:st|nd|rd|th)\b|keep you in mind|(?:consider|take) (?:it|that|this) (?:when|into)|when matching you|for paid collaborations only|(?:we|i)(?:'ll| will) get (?!back\b|in touch\b)(?:the|that|this|your|you|it|them)\b/i.test(g)) return '';
-  if (/\bpaid (?:opportunit|collaboration option|option|slots?|campaigns?)|\bpayout\b/i.test(g) && !/\?/.test(g)) return '';
+  if (/\bpaid (?:opportunit|collaboration option|option|slots?|campaigns?)/i.test(g) && !/\?/.test(g)) return '';
   if (/(^|\n)\s*[•*\-]\s|\n\s*\d+[.)]\s/.test(t) || /•/.test(t)) return ''; // no bullet points or numbered lists
   // They are writing to us on Instagram, so their profile is already known: never ask for it.
   if (/\b(?:insta(?:gram)?\s+)?(?:handle|username|user name|profile link|profile id)\b/i.test(g) && /\?|\b(?:share|send|drop|give|tell|provide)\b/i.test(g)) return '';
@@ -160,10 +163,11 @@ class Concierge {
         + String.fromCharCode(10, 10) + 'WHAT WE ALREADY KNOW ABOUT THEM: ' + factsLine(lead)
         + String.fromCharCode(10, 10) + "THE CUSTOMER'S NEW MESSAGE(S): " + unanswered.map((m) => '"' + clip(m.text, 500) + '"').join(' ')
         + String.fromCharCode(10, 10) + 'DRAFT REPLY TO REVIEW: "' + draft + '"';
-      const raw = await this.llm.complete({ system, messages: [{ role: 'user', content: user }], json: true, temperature: 0.1, maxTokens: 800, thinking: Number(process.env.JUDGE_THINKING) || 0 });
+      const raw = await this.llm.complete({ system, messages: [{ role: 'user', content: user }], json: true, temperature: 0.1, maxTokens: 1500, thinking: Number(process.env.JUDGE_THINKING) || 0 });
       const out = typeof raw === 'object' && raw ? raw : extractJson(raw);
-      if (!out || !['send', 'fix'].includes(out.verdict)) return { verdict: 'send', skipped: 'unreadable review' };
-      return { verdict: out.verdict, issues: clip(out.issues, 200), reply: String(out.reply || '').trim() };
+      if (!out || !['send', 'fix', 'silent'].includes(out.verdict)) return { verdict: 'send', skipped: 'unreadable review' };
+      const issues = Array.isArray(out.violations) && out.violations.length ? out.violations.map((v) => '"' + clip(v && v.quote, 80) + '" (' + clip(v && v.rule, 60) + ')').join('; ') : clip(out.issues, 200);
+      return { verdict: out.verdict, issues: clip(issues, 400), reply: String(out.reply || '').trim(), senderType: out.sender_type || '', needsTeam: out.needs_team === true, why: clip(out.why, 200) };
     } catch (e) { return { verdict: 'send', skipped: 'editor unavailable: ' + String(e.message).slice(0, 80) }; }
   }
 
@@ -229,9 +233,10 @@ class Concierge {
         const t0 = Date.now();
         const rv = await this.review({ writerPrompt: system, settings, lead, rows, tz, now, facts, playbook, draft: text });
         if (process.env.CONCIERGE_DEBUG) console.error('[judge] ' + rv.verdict + ' ' + (Date.now() - t0) + 'ms issues=' + (rv.issues || '') + (rv.skipped ? ' SKIPPED ' + rv.skipped : ''));
-        if (rv.verdict === 'send') return { action: out.action, text, needsTeam, why, judge: { verdict: 'send', ...(rv.skipped ? { skipped: rv.skipped } : {}) } };
+        if (rv.verdict === 'send') return { action: out.action, text: tidy(text), needsTeam, why, judge: { verdict: 'send', senderType: rv.senderType, ...(rv.skipped ? { skipped: rv.skipped } : {}) } };
+        if (rv.verdict === 'silent') return { action: 'silent', text: '', needsTeam: true, why: rv.why || why, judge: { verdict: 'silent', senderType: rv.senderType, issues: rv.issues, original: text } };
         const fixed = rv.reply ? checkReply(rv.reply, grounding, { previous, recent, contactGrounding: [facts, playbook].join(' ') }) : '';
-        if (fixed) return { action: out.action, text: fixed, needsTeam: true, why, judge: { verdict: 'fixed', issues: rv.issues, original: text } };
+        if (fixed) return { action: out.action, text: tidy(fixed), needsTeam: needsTeam || rv.needsTeam, why: rv.why || why, judge: { verdict: 'fixed', senderType: rv.senderType, issues: rv.issues, original: text } };
         if (process.env.CONCIERGE_DEBUG) console.error('[editor] draft=' + JSON.stringify(text) + ' issues=' + rv.issues + ' fix=' + JSON.stringify(rv.reply) + ' fixPassed=' + !!fixed);
         feedback = rv.issues || 'the draft broke the editor checks';
         lastWhy = 'editor rejected: ' + feedback;
