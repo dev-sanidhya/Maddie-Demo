@@ -123,11 +123,7 @@ function checkReply(text, grounding, { previous = '', recent = [], contactGround
   // Never settle a call or meeting itself: a day or time may only be mentioned as something the team will confirm.
   const slot = /\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday|tomorrow|tonight|\d{1,2}\s?(?:am|pm)|\d{1,2}:\d{2}|\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*)\b/i.test(g);
   if (slot && !/\b(confirm|check with|check if|check whether|let you know|whether|if that works)\b/i.test(g)) return '';
-  // never ask for the same thing again when the customer did not give it: the same ask in either of the last two replies
-  const topics = { 'instagram handle': /\b(instagram )?(handle|profile link|username)\b/i, email: /\bemail\b/i, 'phone number': /\b(phone|whatsapp|contact) (number|details)|\bwhatsapp\b/i, budget: /\bbudget\b/i, niche: /\bniche\b/i, city: /\bcity\b/i, brand: /\b(your )?brand (name|overview|details)|\bshare (a )?(quick |short )?(brief|overview)\b/i };
-  for (const [name, rx] of Object.entries(topics)) {
-    if (/\?/.test(g) && (g.match(/[^.!?]*\?/g) || []).some((q) => rx.test(q)) && recent.some((r) => (String(r).match(/[^.!?]*\?/g) || []).some((q) => rx.test(q)))) return '';
-  }
+  // Re-asking an unanswered question is judged by the editor, with the whole chat in view. A fixed topic list here wrongly blocked asking again for the part of a two-part question that was not answered (budget after the city), which left a hot lead without a reply.
   return t;
 }
 
@@ -249,7 +245,9 @@ class Concierge {
     // short holding line (never silence), chosen so it differs from the last thing we said.
     if (process.env.CONCIERGE_DEBUG) console.error('[fallback] ' + lastWhy);
     const lastIn = [...rows].reverse().find((m) => m.direction === 'in');
-    const substantive = lastIn && (String(lastIn.text).trim().split(/\s+/).length > 2 || lastIn.text.includes('?'));
+    // anything that is not a bare sign-off (ok, thanks, sure, an emoji) is something the customer expects an answer to, even one word like Mumbai
+    const signOff = /^(ok(ay)?|sure|thanks?( you)?|thank u|noted|done|cool|great|fine|yup|alright|perfect|got it|will do|hmm+|nice)[ !.,]*$/i;
+    const substantive = lastIn && !signOff.test(String(lastIn.text).trim()) && /[a-z0-9]/i.test(String(lastIn.text));
     const holding = ['Thanks, noted. I have flagged this for the team.', 'Got it, thank you. The team will take it from here.', 'Noted, I will make sure the team sees this.'].find((h) => !recent.includes(h) && h !== previous) || '';
     return { action: 'handoff', text: substantive ? holding : '', needsTeam: true, why: lastWhy || 'could not write a safe reply', failed: true, held: !!(substantive && holding) };
   }

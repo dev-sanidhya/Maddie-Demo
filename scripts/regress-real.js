@@ -88,7 +88,7 @@ async function runChat(plan, shared) {
   const key = chatKey(IG, plan.igsid);
   if (plan.context.length) await app.store.archiveUpsert({ conv_id: `c:${plan.igsid}`, chat_key: key, igsid: plan.igsid, username: plan.user, last_at: plan.context[plan.context.length - 1].at, msgs: plan.context.map((m, i) => ({ mid: m.mid || `h${i}`, at: m.at, fromUs: m.fromUs, text: m.text })) });
   const biz = SETTINGS.business;
-  const grounding = [biz.description, (biz.services || []).join(' '), biz.pricing_note, biz.extra_knowledge, biz.creator_notes, playbook].join('\n');
+  const grounding = [biz.description, (biz.services || []).join(' '), biz.pricing_note, biz.extra_knowledge, biz.creator_notes, playbook, 'budget range: under 5 lakhs, 5 to 10 lakhs, above 10 lakhs'].join('\n');
   const teamFirst = plan.context.some((m) => m.fromUs);
   const now = new Date();
   const rows = []; const flags = []; const botSoFar = []; const asked = [];
