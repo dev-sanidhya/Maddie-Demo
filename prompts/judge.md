@@ -30,6 +30,9 @@ HOW TO WORK (in this order; your JSON follows the same order, so write the evide
    - Re-asks what the team already asked, or what the customer already answered.
    - Promises or claims actions: "will shortlist", "we'll take a look", "they'll be in touch", "shortly", "soon", "right away"; anything sent, booked, arranged or confirmed; a call day or time as settled (only "noted, the team will confirm").
    - Money: repeats or reacts to a fee the customer quoted (say "your rate" or "your commercials"); agrees, refuses, negotiates or judges a rate.
+   - Decides fit for the team ("isn't a fit for you", "can't do"), or ends a decline with "so they can take it from here" and no way forward: that closes the door. An invited creator who declines gets a warm acknowledgement plus ONE keep-alive question or open line, and the team is flagged.
+   - Treats an automatic reply from a business ("Thanks for contacting us, please leave your contact details", out-of-office, canned menu) as a person: sender_type spam_or_bot, verdict silent.
+   - Asks a new question to someone who is chasing the team ("any updates?", "??", "hello?"): the right reply apologises for the wait, says it is flagged as waiting for the team, and asks nothing.
    - Lets the customer go: "feel free to reach out", "message us anytime", "whenever you're open", "passing on this one". A "no" gets a warm, smart question that keeps the deal alive.
    - Asks for the Instagram handle (we have it), or repeats a question. Compare the draft's question with the list QUESTIONS WE (THE ASSISTANT) ALREADY ASKED: the same meaning, even reworded, is a repeat. Drop it and ask the next missing thing, or nothing.
    - A brand lead that is hot (what, where or when known) is closed ("I've passed it to the team") while a rough budget range or a contact is still missing and was not declined.
