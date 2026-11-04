@@ -266,8 +266,11 @@ class Instagram {
     if (await this.store.getLeadByChat(chatId)) return;
     const mid = ev.message && ev.message.mid;
     const text = ev.message && typeof ev.message.text === 'string' ? ev.message.text.trim() : '';
-    const recent = Date.now() - 2 * 60000;
-    const thread = (await this.fetchThread(senderId)).filter((m) => m.mid !== mid && !(m.text === text && !m.fromUs && m.at > recent));
+    // A customer message from the last two minutes is never history: its own webhook is arriving. Dropping only a copy with the same text
+    // missed the case where the first event is an empty companion (a phone number or link makes Instagram send one just before the real
+    // message): the real message was imported as already handled and the customer was never answered.
+    const recent = (Number(ev.timestamp) || Date.now()) - 2 * 60000;
+    const thread = (await this.fetchThread(senderId)).filter((m) => m.mid !== mid && !(!m.fromUs && m.at > recent));
     if (!thread.length) return;
     const { lead } = await this.engine.bindChat(chatId, prof, { channel: this.channel, source: this.channel });
     if (await this.store.countMessages(lead.id)) return; // another webhook got here first

@@ -720,3 +720,18 @@ test('a voice note is kept in the chat and flagged for the team but never answer
   const fresh = await app.store.getLead(lead.id);
   assert.equal(fresh.meta.concierge.needs_team, true);
 });
+
+test('an empty companion event arriving first does not swallow the real message: the customer is still answered', async () => {
+  const now = Date.now();
+  const thread = [
+    { id: 'm1', created_time: new Date(now - 3600000).toISOString(), from: { id: IG_ID, username: 'brandstudio' }, message: 'hi can we pls have your contact details' },
+    { id: 'm_real', created_time: new Date(now - 1000).toISOString(), from: { id: 'u555', username: 'cust' }, message: 'Contact number 9949666464' },
+  ];
+  const llm = conciergeLlm({ action: 'reply', reply: 'Thanks, noted your number. The team will pick it up from here.', needs_team: true, why: 'x' });
+  const { app, graph } = await build({ thread, llm, agentMode: 'concierge' });
+  await app.instagram.handleWebhook({ object: 'instagram', entry: [{ id: IG_ID, messaging: [{ sender: { id: 'u555' }, recipient: { id: IG_ID }, timestamp: now, message: { mid: 'comp1', attachments: [{ type: 'template' }] } }] }] });
+  await app.instagram.handleWebhook(msgEvent('u555', 'Contact number 9949666464', 'm_real'));
+  const lead = await app.store.getLeadByChat('ig:u555');
+  await settle(app, lead.id);
+  assert.ok(sends(graph).length >= 1, 'the customer got an answer');
+});
