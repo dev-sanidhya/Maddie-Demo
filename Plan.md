@@ -115,3 +115,7 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 - To resume: POST /api/instagram/subscribe (or subscribe the app in the Meta dashboard), set AGENT_SHADOW=0 and redeploy, then run `node scripts/catch-up.js --hours=N` for anything missed in the gap.
 - Latest fix deployed before the pause: a lost first reply when Instagram sends an empty companion event first (commit 0fbc9d9).
 - Client one-pager: client-guide/GladUCame_Performance_Record.pdf (daily chats, slips and fixes, 30 Oct to 4 Nov). Retainer idea: about Rs 60,000 a month plus Rs 2 lakh setup for Instagram, WhatsApp and CRM.
+
+## Live again (2026-11-05)
+- Resumed about 5 minutes after the pause: AGENT_SHADOW=0 redeployed, webhook subscribed again (messages, postbacks, referrals), status connected as gladucamepr. A 3-hour catch-up dry run found nothing waiting and no missed messages, so no replies were sent for the gap.
+- Dependencies on this Mac are installed with `npm ci`; Node lives at /opt/homebrew/bin (not on the default PATH).
