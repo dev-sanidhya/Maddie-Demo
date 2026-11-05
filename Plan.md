@@ -119,3 +119,7 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 ## Live again (2026-11-05)
 - Resumed about 5 minutes after the pause: AGENT_SHADOW=0 redeployed, webhook subscribed again (messages, postbacks, referrals), status connected as gladucamepr. A 3-hour catch-up dry run found nothing waiting and no missed messages, so no replies were sent for the gap.
 - Dependencies on this Mac are installed with `npm ci`; Node lives at /opt/homebrew/bin (not on the default PATH).
+
+## UGC rate research (2026-11-05)
+- Scanned all 2,730 archived chats. 20 creator UGC quotes found (low 4,700, median 16,500, high 150,000). No UGC rate charged to brands exists in Instagram chats (only PR retainer from Rs 1 lakh/month, projects from Rs 60,000). Brand pricing likely lives on WhatsApp or email.
+- Creator follower counts available for only 7 of 20 (Instagram API refused the rest), so tiers are by quote band.
