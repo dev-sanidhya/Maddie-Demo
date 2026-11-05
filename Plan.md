@@ -109,3 +109,9 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 - All assistant instructions live in prompts/concierge.md (sales-closer stance, never ask for the Instagram handle, silent only for pure sign-offs).
 - vercel.json: fluid compute and maxDuration 300 (the old 60 s cap).
 - Open: reply latency 4 to 58 s under load, duplicate question asks not yet blocked, unreplied "?" cases, rotate the pasted tokens.
+
+## Paused (2026-11-05)
+- Owner asked to pause the setup. The Instagram webhook for gladucamepr was unsubscribed (subscribed_apps is empty) and production runs with AGENT_SHADOW=1, so nothing is received or sent. Leads are not paused individually.
+- To resume: POST /api/instagram/subscribe (or subscribe the app in the Meta dashboard), set AGENT_SHADOW=0 and redeploy, then run `node scripts/catch-up.js --hours=N` for anything missed in the gap.
+- Latest fix deployed before the pause: a lost first reply when Instagram sends an empty companion event first (commit 0fbc9d9).
+- Client one-pager: client-guide/GladUCame_Performance_Record.pdf (daily chats, slips and fixes, 30 Oct to 4 Nov). Retainer idea: about Rs 60,000 a month plus Rs 2 lakh setup for Instagram, WhatsApp and CRM.
