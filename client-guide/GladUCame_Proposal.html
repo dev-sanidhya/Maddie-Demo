@@ -1,0 +1,167 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Glad U Came x Aperture: Proposal</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+@page{size:A4;margin:0}
+:root{--navy:#0d1b2a;--ink:#14202e;--mint:#7fd6c2;--teal:#1b8f7e;--cream:#fbfaf6;--line:#e4e1d6;--coral:#c9553d;--gold:#b8955a;--mute:#5d6975}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:#d9d6cc}
+body{font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{width:210mm;height:297mm;margin:0 auto 6mm;background:var(--cream);position:relative;overflow:hidden;display:flex;flex-direction:column;page-break-after:always}
+.page:last-child{page-break-after:auto;margin-bottom:0}
+.head{background:var(--navy);color:#fff;padding:8mm 14mm 6mm;position:relative}
+.head:after{content:"";position:absolute;left:0;right:0;bottom:0;height:1.4mm;background:linear-gradient(90deg,var(--mint),var(--gold))}
+.top{display:flex;justify-content:space-between;align-items:flex-start}
+.brand{font-family:Georgia,serif;letter-spacing:.34em;font-size:15pt;color:var(--mint);font-weight:700}
+.tag{font-size:6.8pt;letter-spacing:.2em;text-transform:uppercase;color:#aab8c4;margin-top:1.4mm}
+.for{text-align:right;font-size:6.8pt;letter-spacing:.14em;text-transform:uppercase;color:#aab8c4;line-height:1.6}
+.for b{color:#fff;font-weight:600}
+h1{font-family:Georgia,serif;font-weight:700;font-size:25pt;line-height:1.1;margin-top:6mm;letter-spacing:-.01em}
+h1 em{color:var(--mint);font-style:normal}
+.sub{font-size:9pt;color:#c9d3dc;margin-top:2mm;max-width:160mm;line-height:1.5}
+.mini{background:var(--navy);color:#fff;padding:5mm 14mm 4mm;display:flex;justify-content:space-between;align-items:center;position:relative}
+.mini:after{content:"";position:absolute;left:0;right:0;bottom:0;height:1mm;background:linear-gradient(90deg,var(--mint),var(--gold))}
+.mini .brand{font-size:10pt}.mini .for{font-size:6.2pt}
+.sec{padding:5mm 14mm 0}
+.sec h2{font-family:Georgia,serif;font-size:12pt;color:var(--navy);display:flex;align-items:center;gap:2.4mm;margin-bottom:2.6mm}
+.sec h2:before{content:"";width:7mm;height:.8mm;background:var(--gold)}
+.sec p.lead{font-size:8.6pt;line-height:1.6;color:#33414f;margin-bottom:2.6mm}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:2.4mm}
+.k{background:#fff;border:1px solid var(--line);border-top:1.2mm solid var(--teal);border-radius:2.2mm;padding:3mm 2mm;text-align:center}
+.k b{display:block;font-family:Georgia,serif;font-size:18pt;line-height:1;color:var(--navy)}
+.k span{display:block;font-size:6.4pt;letter-spacing:.07em;text-transform:uppercase;color:var(--mute);margin-top:1.8mm;line-height:1.35}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:3.4mm}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:3.2mm}
+.card{background:#fff;border:1px solid var(--line);border-left:1.2mm solid var(--mint);border-radius:2.2mm;padding:3.2mm 3.6mm}
+.card h3{font-size:8.6pt;color:var(--navy);margin-bottom:1.4mm}
+.card p,.card li{font-size:7.6pt;line-height:1.5;color:#3a4856}
+.card ul{list-style:none}.card li{padding-left:3mm;position:relative;margin-bottom:.9mm}
+.card li:before{content:"";position:absolute;left:0;top:1.7mm;width:1.3mm;height:1.3mm;background:var(--teal);border-radius:50%}
+.card strong{color:var(--teal)}
+.pill{display:inline-block;font-size:5.8pt;letter-spacing:.12em;text-transform:uppercase;font-weight:700;padding:.6mm 2mm;border-radius:5mm;margin-bottom:1.6mm}
+.pill.live{background:#dff3ee;color:#14634f}.pill.new{background:#f6ecd9;color:#8a6a2c}
+.flow{display:flex;align-items:stretch;gap:0;margin-top:1mm}
+.step{flex:1;background:#fff;border:1px solid var(--line);padding:3mm 2.6mm;position:relative}
+.step:not(:last-child){border-right:none}
+.step:not(:last-child):after{content:"";position:absolute;right:-1.6mm;top:50%;margin-top:-1.6mm;width:3.2mm;height:3.2mm;background:var(--mint);transform:rotate(45deg);z-index:2}
+.step i{font-style:normal;font-family:Georgia,serif;font-size:13pt;color:var(--gold);display:block;margin-bottom:.8mm}
+.step b{display:block;font-size:7.4pt;color:var(--navy);margin-bottom:.8mm}
+.step span{font-size:6.6pt;line-height:1.45;color:#4a5866;display:block}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);font-size:7.4pt;line-height:1.45}
+th{background:var(--navy);color:#cfd9e2;font-weight:600;font-size:6pt;letter-spacing:.1em;text-transform:uppercase;padding:1.8mm 2.4mm;text-align:left}
+td{padding:2mm 2.4mm;border-top:1px solid var(--line);vertical-align:top;color:#33414f}
+td b{color:var(--navy)}
+td.w{width:26mm;font-family:Georgia,serif;color:var(--navy);font-weight:700;font-size:8pt}
+.price{margin:5mm 14mm 0;background:var(--navy);color:#fff;border-radius:3mm;padding:6mm 7mm;display:flex;gap:8mm;align-items:center}
+.price .l{flex:1}
+.price h3{font-family:Georgia,serif;font-size:11pt;color:var(--mint);margin-bottom:2mm}
+.price ul{list-style:none;font-size:7.6pt;line-height:1.55;color:#d6dee6}
+.price li{padding-left:3.4mm;position:relative;margin-bottom:1mm}
+.price li:before{content:"";position:absolute;left:0;top:1.8mm;width:1.4mm;height:1.4mm;background:var(--mint);border-radius:50%}
+.price li b{color:#fff;font-weight:600}
+.price .r{width:60mm;border-left:1px solid #2d4258;padding-left:8mm;text-align:left}
+.price .r small{font-size:6.4pt;letter-spacing:.16em;text-transform:uppercase;color:#aab8c4;display:block}
+.price .r b{font-family:Georgia,serif;font-size:26pt;color:#fff;display:block;line-height:1.1;margin-top:1.4mm}
+.price .r b sub{font-size:9pt;color:#aab8c4;font-family:Helvetica,Arial,sans-serif;font-weight:400}
+.price .r span{font-size:6.8pt;color:#aab8c4;display:block;margin-top:1.6mm;line-height:1.5}
+.price .r em{font-style:normal;color:var(--mint);font-weight:600}
+.quote{margin:4mm 14mm 0;border-left:1.2mm solid var(--gold);padding:1mm 0 1mm 4mm;font-family:Georgia,serif;font-size:9.4pt;line-height:1.5;color:var(--navy);font-style:italic}
+.quote small{display:block;font-family:Helvetica,Arial,sans-serif;font-style:normal;font-size:6.6pt;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);margin-top:1.4mm}
+.foot{margin-top:auto;padding:3mm 14mm 6mm;font-size:6pt;color:var(--mute);line-height:1.55;display:flex;justify-content:space-between;gap:8mm}
+.foot b{color:var(--navy)}
+@media print{html,body{background:none}.page{margin:0}}
+</style></head><body>
+
+<!-- PAGE 1 -->
+<div class="page">
+<div class="head"><div class="top"><div><div class="brand">GLAD U CAME</div><div class="tag">We deliver what we promise</div></div>
+<div class="for">Proposal<br><b>One inbox for every creator and brand</b><br>Prepared for Maddie Amrutkar · November 2026</div></div>
+<h1>Every DM, every WhatsApp,<br>one place your team <em>actually closes</em> from.</h1>
+<p class="sub">You already have an Instagram concierge that has handled 123 real conversations in six days. This proposal extends the same care to WhatsApp and gives your whole team a single CRM, so no creator, brand or campaign enquiry is ever lost between apps.</p></div>
+
+<div class="sec"><h2>Where Glad U Came stands today</h2>
+<div class="kpis">
+<div class="k"><b>97%</b><span>conversations handled cleanly (Wed 4 Nov)</span></div>
+<div class="k"><b>11 s</b><span>median reply time on @gladucamepr</span></div>
+<div class="k"><b>401</b><span>customer messages read in six days</span></div>
+<div class="k"><b>2,658</b><span>past chats already in its memory</span></div></div></div>
+
+<div class="sec"><h2>What we see in your inbox</h2>
+<p class="lead">Glad U Came does not get one kind of message. In six days the concierge sorted the inbox into very different people, and each needs a different answer:</p>
+<div class="three">
+<div class="card"><h3>Brands with a budget</h3><p>Brand leads asking for campaigns, creators and reach. These are <strong>the revenue</strong>. They need a quick, confident reply, a budget range and a contact captured, then your team on the call.</p></div>
+<div class="card"><h3>Creators you invited</h3><p>Creators answering your outreach, and creators pitching themselves. Many ask "is it paid or barter?", which is a conversation your team should <strong>negotiate</strong>, not lose in a busy inbox.</p></div>
+<div class="card"><h3>Everyone else</h3><p>Vendors, promos, job seekers, auto-replies and people chasing for an update. The concierge already tells them apart so your team's time goes to <strong>the right 20%</strong>.</p></div></div></div>
+
+<div class="sec"><h2>The problem we are solving next</h2>
+<div class="two">
+<div class="card" style="border-left-color:var(--coral)"><h3>Conversations are split across apps</h3><p>A brand starts on Instagram, then says "let's continue on WhatsApp". From that moment the history, the budget they mentioned and the promise your team made live in two places, and the second one has no memory at all.</p></div>
+<div class="card" style="border-left-color:var(--coral)"><h3>No single view of the pipeline</h3><p>Today, to know "which brands are warm this week?", someone scrolls chats. There is no list of who is waiting on us, who went quiet, who asked for a call and who is ready to sign.</p></div></div></div>
+
+<div class="sec"><h2>Our proposal in one line</h2>
+<p class="lead" style="font-size:9.4pt;color:var(--navy);font-family:Georgia,serif">Keep what already works on Instagram, bring the same agent to WhatsApp, and put both into one CRM that your team opens every morning to see exactly who to talk to first.</p></div>
+
+<div class="foot"><div><b>Source.</b> Figures come from the Instagram Concierge Performance Record for 30 Oct to 4 Nov 2026, measured on the live @gladucamepr account.</div><div style="white-space:nowrap;text-align:right"><b>Aperture</b><br>Page 1 of 3</div></div>
+</div>
+
+<!-- PAGE 2 -->
+<div class="page">
+<div class="mini"><div class="brand">GLAD U CAME</div><div class="for">Proposal · <b>What you get</b></div></div>
+
+<div class="sec"><h2>Three pieces, one system</h2>
+<div class="three">
+<div class="card"><span class="pill live">Live today</span><h3>1. Instagram concierge</h3>
+<ul><li>Replies to every DM on @gladucamepr in about 11 seconds, day and night</li><li>Reads the full chat history first, and steps back when your team is already talking</li><li>Sorts brand, creator, vendor and job seeker, then answers each the right way</li><li>Never quotes fees or promises dates; hands those to your team</li><li>Daily report of what it handled and what it flagged</li></ul></div>
+<div class="card"><span class="pill new">New</span><h3>2. WhatsApp concierge</h3>
+<ul><li>The same voice and the same rules, on a verified Glad U Came WhatsApp Business number</li><li>Picks up the Instagram history, so a brand never repeats itself</li><li>Instant answer to first messages, forms and click-to-WhatsApp enquiries</li><li>Proper follow-up templates for creators who went quiet</li><li>Your team can jump in at any time and the agent steps aside</li></ul></div>
+<div class="card"><span class="pill new">New</span><h3>3. Central CRM</h3>
+<ul><li>Every Instagram and WhatsApp conversation as one profile per brand or creator</li><li>Stages from New to Warm, Call booked, Negotiating, Won and Not now</li><li>Tags for brand, creator, paid and barter; budget and contact captured automatically</li><li>Tasks and reminders so no one is left waiting</li><li>One weekly view of the pipeline for you</li></ul></div></div></div>
+
+<div class="sec"><h2>What happens to a brand enquiry</h2>
+<div class="flow">
+<div class="step"><i>1</i><b>DM arrives</b><span>A brand writes on Instagram at 11pm.</span></div>
+<div class="step"><i>2</i><b>Replied in seconds</b><span>The concierge answers in your tone and asks one question: their budget range.</span></div>
+<div class="step"><i>3</i><b>Profile created</b><span>The CRM records the brand, budget and number, tagged "hot".</span></div>
+<div class="step"><i>4</i><b>Moves to WhatsApp</b><span>They switch apps. The agent already knows everything said so far.</span></div>
+<div class="step"><i>5</i><b>Your team closes</b><span>Maddie's team sees a ready summary, calls, and moves the stage to Won.</span></div></div></div>
+
+<div class="sec"><h2>Built around how Glad U Came works</h2>
+<table><thead><tr><th>Your reality</th><th>How the system handles it</th></tr></thead><tbody>
+<tr><td class="w">Paid or barter</td><td>The CRM tags every creator as paid, barter or undecided, and the agent follows <b>your own rules</b> on pricing, barter and how far to negotiate, once your team shares them (questionnaire already sent).</td></tr>
+<tr><td class="w">Your team's voice</td><td>Replies are written in the warm, direct style of your own past answers, and checked by a second AI before they are sent.</td></tr>
+<tr><td class="w">Human first</td><td>When someone asks for a human, or your team has replied, the agent pauses on that chat. Nothing is ever said over your team.</td></tr>
+<tr><td class="w">Voice notes</td><td>Never answered by the bot. They are flagged in the CRM for your team to listen to and reply.</td></tr>
+<tr><td class="w">Nothing invented</td><td>No made-up fees, dates or phone numbers. If it does not know, it says your team will confirm, and creates a task.</td></tr>
+<tr><td class="w">Daily proof</td><td>A short daily report: chats handled, slips found, fixes made. The same honest format as the record we just shared.</td></tr></tbody></table></div>
+
+<div class="foot"><div><b>WhatsApp note.</b> WhatsApp requires a Meta-verified business number and pre-approved message templates for outbound messages. We handle the setup and the approvals.</div><div style="white-space:nowrap;text-align:right"><b>Aperture</b><br>Page 2 of 3</div></div>
+</div>
+
+<!-- PAGE 3 -->
+<div class="page">
+<div class="mini"><div class="brand">GLAD U CAME</div><div class="for">Proposal · <b>Rollout and investment</b></div></div>
+
+<div class="sec"><h2>How we roll it out</h2>
+<table><thead><tr><th>When</th><th>What happens</th><th>What we need from you</th></tr></thead><tbody>
+<tr><td class="w">Week 1</td><td>Pricing and barter rules loaded into the Instagram agent. CRM structure set up around your stages and tags. Existing 2,658 chats imported as the first profiles.</td><td>Answers to the pricing and barter questionnaire</td></tr>
+<tr><td class="w">Weeks 2 to 3</td><td>WhatsApp Business number verified, templates approved by Meta, WhatsApp agent tested in draft mode on real past chats.</td><td>Access to the Glad U Came WhatsApp Business account</td></tr>
+<tr><td class="w">Week 4</td><td>WhatsApp goes live. Instagram and WhatsApp conversations merge into one profile. Team walkthrough of the CRM.</td><td>Your team joins one 30-minute walkthrough</td></tr>
+<tr><td class="w">Every month</td><td>Daily reports, a monthly review with you, fixes and improvements shipped within the same week they are found.</td><td>A short monthly call</td></tr></tbody></table></div>
+
+<div class="sec"><h2>Our commitments</h2>
+<div class="three">
+<div class="card"><h3>Accuracy</h3><p>Higher than today's <strong>97%</strong> clean handling within one week of working with your pricing and barter rules, with the same daily report.</p></div>
+<div class="card"><h3>Transparency</h3><p>You see what the agent said, what it held back, and what it handed to your team. <strong>Nothing hidden</strong>, including our own mistakes.</p></div>
+<div class="card"><h3>Your data</h3><p>All conversations and creator details stay in your CRM and remain <strong>yours</strong>. Aperture does not use them for anyone else.</p></div></div></div>
+
+<div class="price"><div class="l"><h3>Monthly investment</h3>
+<ul><li><b>Instagram concierge</b> on @gladucamepr, kept live, monitored and improved</li><li><b>WhatsApp concierge</b> on your verified business number</li><li><b>Central CRM</b> with stages, tags, tasks and a weekly pipeline view</li><li><b>Setup, template approvals and team walkthrough</b> included</li><li><b>Daily performance report</b> and a monthly review call</li></ul></div>
+<div class="r"><small>Per month</small><b>₹29,999<sub> / month</sub></b><span><em>All three pieces, one price.</em><br>Meta's own per-conversation WhatsApp charges are billed at actuals by Meta.</span></div></div>
+
+<div class="quote">"We deliver what we promise." We would like to hold ourselves to the same line: a system your team trusts enough to forget about, and a report that proves why.<small>Aperture, with Glad U Came</small></div>
+
+<div class="sec"><h2>Next step</h2>
+<p class="lead">Say yes, share the pricing and barter answers, and we begin Week 1 the same day. The Instagram concierge keeps running exactly as it is while we build the rest.</p></div>
+
+<div class="foot"><div><b>Terms in brief.</b> Billed monthly, cancel with 30 days' notice. Prices in Indian rupees, excluding GST. Rollout dates assume timely WhatsApp account access and Meta approvals, which are outside our control.</div><div style="white-space:nowrap;text-align:right"><b>Aperture</b><br>AI integrations · Page 3 of 3</div></div>
+</div>
+</body></html>
