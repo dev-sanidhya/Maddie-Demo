@@ -460,6 +460,7 @@ function leadCard(l) {
   else if (l.callback_text && l.stage === 'active') metas.push(`<span class="m">${ic('clock', 'sm')} ${esc(l.callback_text)}</span>`);
   if (l.budget_amount != null) metas.push(`<span class="m">${esc(money(l.budget_amount))}</span>`);
   if (l.designer) metas.push(`<span class="m">${ic('user', 'sm')} ${esc(String(l.designer).split(' ')[0])}</span>`);
+  if (l.category) metas.unshift(`<span class="m"><b>${esc(l.category)}</b></span>`);
   metas.push(`<span class="m faint">${esc(channelName(l))}</span>`);
   return `<div class="lead" data-open="${l.id}" style="--stage:${isUrgent(l) ? 'var(--urgent)' : stageVar(l.stage)}">
     <div class="top"><div class="nm">${esc(l.name || 'Unknown')}</div>${isUrgent(l) ? '<span class="reddot" title="Needs you"></span>' : ''}</div>
@@ -637,7 +638,7 @@ async function openLead(id, { soft } = {}) {
   $('#drawer').innerHTML = `
   <div class="d-head">
     <div class="row" style="flex-wrap:nowrap"><div class="avatar lg">${esc(initials(l.name))}</div>
-      <div class="grow"><h2>${esc(l.name || 'Unknown')}</h2><div class="row" style="gap:8px;margin-top:6px"><span class="pill ${hue}">${isUrgent(l) ? 'Needs you now' : S[l.stage].label}</span><span class="pill plain">${esc(channelName(l))}${l.tg_username ? ` @${esc(l.tg_username)}` : ''}</span>${l.ai_paused ? '<span class="pill human">Assistant paused</span>' : ''}</div></div>
+      <div class="grow"><h2>${esc(l.name || 'Unknown')}</h2><div class="row" style="gap:8px;margin-top:6px"><span class="pill ${hue}">${isUrgent(l) ? 'Needs you now' : S[l.stage].label}</span><span class="pill plain">${esc(channelName(l))}${l.tg_username ? ` @${esc(l.tg_username)}` : ''}</span>${l.category ? `<span class="pill plain">${esc(l.category)}</span>` : ''}${l.ai_paused ? '<span class="pill human">Assistant paused</span>' : ''}</div></div>
       <div class="ring" style="background:conic-gradient(var(--brand) ${l.score * 3.6}deg, var(--line) 0)" title="How good a match"><span>${l.score}</span></div>
       <button class="btn ghost" id="dx" aria-label="Close">${ic('x')}</button></div>
   </div>

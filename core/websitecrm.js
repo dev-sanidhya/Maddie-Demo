@@ -14,6 +14,7 @@ const { formatMoney, parseAmount } = require('./budget');
 const { formatWhen } = require('./when');
 const { briefFor } = require('./attention');
 const { STAGE_LABELS } = require('./qualify');
+const { CATEGORY_LABELS } = require('./placement');
 
 const STATUSES = ['new', 'contacted', 'closed'];
 const clip = (v, n) => String(v == null ? '' : v).replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim().slice(0, n);
@@ -48,6 +49,8 @@ function toCrmLead(lead, messages, settings, media = new Map()) {
     source: sourceOf(lead),
     channel: lead.channel,
     stage: STAGE_LABELS[lead.stage] || lead.stage,
+    stageReason: lead.stage_reason || '',
+    category: (lead.meta.crm_ai && CATEGORY_LABELS[lead.meta.crm_ai.category]) || '',
     call: lead.callback_at ? formatWhen(lead.callback_at, tz) : '',
     status: STATUSES.includes(lead.meta.crm_status) ? lead.meta.crm_status : 'new',
     time: new Date(lead.created_at).toISOString(),

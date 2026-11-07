@@ -12,6 +12,7 @@
   function usesDrawer() { return isNarrow() || state.view === 'board'; }
   function needsAttention(l) { return l.stage === 'Needs human'; }
   var STAGE_CLASS = { 'Needs human': 'st-human', Active: 'st-active', Nurtured: 'st-nurtured', Disqualified: 'st-disqualified', Qualifying: 'st-qualifying', New: 'st-new' };
+  function catChip(l) { return l.category ? '<span class="chip" title="Filed by the assistant">' + esc(l.category) + '</span>' : ''; }
   function stageChip(l) { return l.stage ? '<span class="chip ' + (STAGE_CLASS[l.stage] || '') + '">' + esc(l.stage) + '</span>' : ''; }
   function callChip(l) { return l.call ? '<span class="chip call">' + ICON.phone + esc(l.call) + '</span>' : ''; }
 
@@ -98,7 +99,7 @@
   $('signOut').addEventListener('click', function () { fetch('/api/logout', { method: 'POST' }).then(function () { location.reload(); }); });
 
   // ---------- data ----------
-  function leadSignature(l) { return JSON.stringify([l.status, l.name, l.phone, l.email, l.summary, l.projectType, l.location, l.budget, l.call, l.stage, l.transcript.length, (l.transcript[l.transcript.length - 1] || {}).content, l.transcript.map(function (t) { return t.removed ? 1 : t.image ? 2 : 0; }).join('')]); }
+  function leadSignature(l) { return JSON.stringify([l.status, l.name, l.phone, l.email, l.summary, l.category, l.stageReason, l.projectType, l.location, l.budget, l.call, l.stage, l.transcript.length, (l.transcript[l.transcript.length - 1] || {}).content, l.transcript.map(function (t) { return t.removed ? 1 : t.image ? 2 : 0; }).join('')]); }
   function loadLeads() {
     return api('/api/crm/leads').then(function (data) {
       $('login').classList.remove('show');
@@ -158,7 +159,7 @@
       else if (state.filter !== 'all' && l.status !== state.filter) return false;
       if (state.stage && l.stage !== state.stage) return false;
       if (!q) return true;
-      return [l.name, l.contact, l.projectType, l.location, l.summary, l.source, l.stage].join(' ').toLowerCase().indexOf(q) >= 0;
+      return [l.name, l.contact, l.projectType, l.location, l.summary, l.source, l.stage, l.category].join(' ').toLowerCase().indexOf(q) >= 0;
     });
     var t = function (l) { return new Date(l.time).getTime(); };
     if (state.sort === 'oldest') out.sort(function (x, y) { return t(x) - t(y); });
@@ -200,7 +201,7 @@
         '<span class="check">' + ICON.check + '</span>' +
         '<span class="avatar" style="background:' + tint(l.name) + '">' + esc(initials(l.name)) + '</span>' +
         '<div class="main"><div class="top"><div class="name">' + esc(l.name || 'Unknown') + '</div><span class="when">' + timeAgo(l.time) + '</span></div><div class="sub">' + esc(sub) + '</div>' +
-        '<div class="meta">' + stageChip(l) + callChip(l) + '<span class="chip ' + l.status + '">' + statusLabel(l.status) + '</span><span class="chip">' + sourceIcon(l) + esc(l.source) + '</span></div></div></div>';
+        '<div class="meta">' + catChip(l) + stageChip(l) + callChip(l) + '<span class="chip ' + l.status + '">' + statusLabel(l.status) + '</span><span class="chip">' + sourceIcon(l) + esc(l.source) + '</span></div></div></div>';
     }).join('');
     updateBulk();
   }
@@ -236,7 +237,7 @@
         return '<div class="kcard' + (needsAttention(l) ? ' attn' : '') + '" draggable="true" tabindex="0" data-id="' + l.id + '">' +
           '<div class="k-top"><span class="avatar" style="background:' + tint(l.name) + '">' + esc(initials(l.name)) + '</span><span class="k-name">' + esc(l.name || 'Unknown') + '</span><span style="color:var(--ink-3);font-size:12px">' + timeAgo(l.time) + '</span></div>' +
           '<div class="k-sub">' + esc(sub) + '</div>' +
-          '<div class="k-foot">' + stageChip(l) + callChip(l) + '<button type="button" class="k-move" data-move="' + next + '" data-id="' + l.id + '">' + (st === 'closed' ? 'Reopen' : 'Move to ' + statusLabel(next)) + '</button></div></div>';
+          '<div class="k-foot">' + catChip(l) + stageChip(l) + callChip(l) + '<button type="button" class="k-move" data-move="' + next + '" data-id="' + l.id + '">' + (st === 'closed' ? 'Reopen' : 'Move to ' + statusLabel(next)) + '</button></div></div>';
       }).join('');
       return '<div class="col" data-status="' + st + '"><div class="col-head"><span class="dot"></span>' + statusLabel(st) + '<em>' + items.length + '</em></div>' + (cards || '<div class="col-empty">No leads here</div>') + '</div>';
     }).join('');
@@ -359,7 +360,7 @@
       '<div class="d-head"><span class="avatar lg" style="background:' + tint(l.name) + '">' + esc(initials(l.name)) + '</span><div><h2>' + esc(l.name || 'Unknown') + '</h2>' +
       '<div class="sub">' + contactBits.join('<span>·</span>') + (contactBits.length ? '<span>·</span>' : '') + '<span class="chip">' + sourceIcon(l) + esc(l.source) + '</span><span>' + timeAgo(l.time) + (timeAgo(l.time) === 'now' ? '' : ' ago') + '</span></div></div></div>' +
       (needsAttention(l) ? '<div class="attn-note">' + ICON.phone + '<span>This enquiry needs a person. The assistant has stepped back, so please reply to them directly.</span></div>' : '') +
-      '<div class="d-badges">' + stageChip(l) + callChip(l) + '</div>' +
+      '<div class="d-badges">' + catChip(l) + stageChip(l) + callChip(l) + '</div>' +
       '<div class="d-status"><div class="seg wide" id="statusSeg">' + ['new', 'contacted', 'closed'].map(function (s) { return '<button type="button" data-status="' + s + '" class="' + (l.status === s ? 'on' : '') + '">' + statusLabel(s) + '</button>'; }).join('') + '</div></div>' +
       '<div class="d-actions">' +
       (wa ? '<a class="btn primary sm" target="_blank" rel="noopener" href="' + wa + '">' + ICON.chat + 'WhatsApp</a>' : '') +

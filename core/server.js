@@ -1,5 +1,6 @@
 'use strict';
 const http = require('node:http');
+const { CATEGORY_LABELS } = require('./placement');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
@@ -128,6 +129,7 @@ function createHandler(app) {
     return {
       id: l.id, name: l.name, phone: l.phone, email: l.email, tg_username: l.tg_username,
       stage: l.stage, stage_reason: l.stage_reason, stage_locked: !!l.stage_locked, score: l.score,
+      category: (l.meta.crm_ai && CATEGORY_LABELS[l.meta.crm_ai.category]) || null,
       project_type: l.project_type, city: l.city, budget_amount: l.budget_amount, budget_text: l.budget_text,
       timeline_months: l.timeline_months, timeline_text: l.timeline_text, notes: l.notes, summary: l.summary,
       source: l.source, campaign: l.campaign, channel: l.channel, has_chat: !!l.chat_id,
