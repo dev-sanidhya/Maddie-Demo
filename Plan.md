@@ -123,3 +123,12 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 ## UGC rate research (2026-11-05)
 - Scanned all 2,730 archived chats. 20 creator UGC quotes found (low 4,700, median 16,500, high 150,000). No UGC rate charged to brands exists in Instagram chats (only PR retainer from Rs 1 lakh/month, projects from Rs 60,000). Brand pricing likely lives on WhatsApp or email.
 - Creator follower counts available for only 7 of 20 (Instagram API refused the rest), so tiers are by quote band.
+
+## CRM judge (2026-11-07)
+- The assistant now files every Instagram lead itself. core/placement.js + prompts/classify.md: a judge reads the whole chat and sets CATEGORY (brand lead, invited creator, creator pitching, existing campaign, vendor or promo, job seeker, press, spam or bot, other) and STAGE (new, qualifying, active, nurture, disqualified, human) plus a short reason. Stored in lead.meta.crm_ai; evaluate() in core/qualify.js honours it (it beats the old keyword rules, never an admin lock, a paused chat or "asked for a human").
+- Runs after each customer turn (after the reply is sent), when the team writes, when a customer writes in a paused chat, and on un-pause or un-lock. Engine: placeLead/placeOnce in core/engine.js. Moving an already filed lead needs two opinions that both say "move"; a failed or unsure judge changes nothing.
+- Code guards in normalizePlacement: vendor, spam, job seeker are always Disqualified; automated greetings are spam; asking for a person is Needs human; "remove me" is Disqualified; media only is New; no dashes in reasons.
+- UI: category chip in the Lead Inbox (crm.js) and the admin panel.
+- Tests: test/placement.test.js (27), scripts/regress-crm.js (48 hard chats, 46 clean, 2 gave no answer which is safe). Back-fill: scripts/place-all.js (--dry-run first); run on prod 2026-11-07: 223 leads, 81 then 7 more moved, 8 left unfiled (undecidable, stay as they were).
+- Shipped in the same deploy: shorter replies (about 160 characters), still mirrors the customer's language.
+- Next: watch the first live placements, re-run place-all for unfiled leads, add pricing and barter rules when Maddie's team replies.
