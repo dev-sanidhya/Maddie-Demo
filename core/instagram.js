@@ -340,6 +340,7 @@ class Instagram {
     await this.store.updateLead(lead.id, { meta, last_outbound_at: Date.now() });
     await this.store.addEvent(lead.id, 'team_message', {});
     this.engine.changed('lead', lead.id);
+    if (this.engine.bg && this.engine.placeLead) this.engine.bg(this.engine.placeLead(lead.id)); // what the team just said can change where this lead belongs
   }
 
   // ---------- sending ----------

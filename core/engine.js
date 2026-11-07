@@ -303,6 +303,7 @@ class Engine extends EventEmitter {
       await markProcessed();
       await this.store.addEvent(lead.id, 'message_while_paused', {});
       await this.alertPausedMessage(lead, text);
+      this.bg(this.placeLead(lead.id));
       this.changed('message', lead.id);
       return;
     }
@@ -313,6 +314,7 @@ class Engine extends EventEmitter {
     if (lead.channel !== 'sim' && await this.store.get("SELECT id FROM messages WHERE lead_id=? AND direction='out' AND role='admin' AND created_at>=? LIMIT 1", leadId, newestIn)) {
       await markProcessed();
       await this.store.addEvent(lead.id, 'reply_held_back', { reason: 'team_already_replied' });
+      this.bg(this.placeLead(lead.id));
       this.changed('message', lead.id);
       return;
     }
@@ -334,6 +336,7 @@ class Engine extends EventEmitter {
       let conciergeRows = null;
       let conciergeCtx = null;
       let conciergeP = null;
+      let concOut = null;
       const accountId = this.config.instagram.accountId || this.igAccountId || '';
       if (conciergeOn) {
         // look the chat up by its hash key in the archive, then add what has happened since
@@ -391,6 +394,7 @@ class Engine extends EventEmitter {
       if (conciergeOn) {
         // The assistant read the whole chat and decided for itself. The facts above still feed the CRM; they no longer dictate the words.
         const out = await conciergeP;
+        concOut = out;
         if (out.error) await this.store.addEvent(lead.id, 'llm_error', { step: 'concierge', error: out.error });
         if (out.failed) aiFailed = true;
         const key = conciergeCtx.key;
@@ -417,6 +421,7 @@ class Engine extends EventEmitter {
       this.changed('lead', leadId);
       if (out.messageId) await this.deliver(out.messageId).catch(() => {});
       if (conciergeOn) await this.concierge.remember({ lead, rows, messageId: out.messageId, accountId }); // keep the archive complete under the same key
+      if (conciergeOn) this.bg(this.placeLead(leadId, { did: { action: concOut && concOut.action, needsTeam: concOut && concOut.needsTeam, why: concOut && concOut.why, reply: reply || '' } })); // file the lead after the customer has their answer
       await this.sideEffects(out.lead, prevStage, decision, applied.changed);
       this.bg(this.maybeSummarize(leadId));
     } finally {
@@ -853,7 +858,61 @@ class Engine extends EventEmitter {
       await this.store.updateLead(leadId, { meta });
     }
     await this.store.addEvent(leadId, paused ? 'ai_paused' : 'ai_resumed', { by: 'admin' });
+    if (!paused) this.bg(this.placeLead(leadId)); // the chat is back with the assistant: file it by what the chat says now
     await this.reevaluateLead(leadId);
+  }
+
+  // The assistant's judge files an Instagram lead: it reads the whole chat and sets the lead's CATEGORY (who they are) and STAGE (where they sit in
+  // the CRM). It runs after every customer turn, when the team replies, and when a chat is un-paused, so the CRM never lags the conversation.
+  // It never overrides a person: a stage an admin set by hand (stage_locked) stays; a paused chat stays "Needs human". Failures change nothing.
+  // opts: { did } what the assistant just did; { quiet } record the placement without alerting the team or firing webhooks (used for back-filling).
+  async placeLead(leadId, opts = {}) {
+    if (this.config.agentMode !== 'concierge') return { skipped: 'not in concierge mode' };
+    this.placing = this.placing || new Map();
+    const running = this.placing.get(leadId);
+    if (running) { running.again = true; if (opts.did) running.did = opts.did; return { skipped: 'already running, will run again' }; }
+    const job = { again: false, did: opts.did || null };
+    this.placing.set(leadId, job);
+    try {
+      let result = await this.placeOnce(leadId, { ...opts, did: job.did });
+      // messages arrived while the judge was thinking: look again once with the newest chat, so the CRM ends up current
+      for (let n = 0; job.again && n < 2; n++) { job.again = false; result = await this.placeOnce(leadId, { ...opts, did: job.did }); }
+      return result;
+    } finally { this.placing.delete(leadId); }
+  }
+
+  async placeOnce(leadId, { did = null, quiet = false } = {}) {
+    const lead = await this.store.getLead(leadId);
+    if (!lead || lead.channel !== 'instagram' || lead.opted_out) return { skipped: 'not an instagram lead' };
+    const accountId = this.config.instagram.accountId || this.igAccountId || '';
+    const ctx = await this.concierge.loadChat({ lead, newRows: [], accountId });
+    const rows = ctx.rows;
+    if (!rows.some((m) => m.direction === 'in')) return { skipped: 'the customer has not written' };
+    const upto = Math.max(...rows.map((m) => Number(m.created_at) || 0));
+    const cur = lead.meta.crm_ai || null;
+    if (cur && cur.upto > upto) return { skipped: 'a newer placement already exists' };
+    const current = { category: cur && cur.category, stage: lead.stage, reason: lead.stage_reason || (cur && cur.reason), by: lead.stage_locked ? 'admin' : 'agent' };
+    const p = await this.concierge.classify({ lead, rows, settings: this.settings.get(), current, did });
+    if (!p) { await this.store.addEvent(lead.id, 'placement_unchanged', { reason: 'the judge could not decide, so the lead stays where it is' }); return { failed: true }; }
+
+    const fresh = await this.store.getLead(leadId); // the lead may have changed while the judge was thinking (an admin moved it, it was paused)
+    const meta = { ...fresh.meta, crm_ai: { category: p.category, stage: p.stage, reason: p.reason, confidence: p.confidence, upto, at: Date.now() } };
+    const patch = { meta };
+    const prevStage = fresh.stage;
+    const prevCategory = fresh.meta.crm_ai && fresh.meta.crm_ai.category;
+    let stage = prevStage;
+    if (!fresh.stage_locked) {
+      const ev = evaluate({ ...fresh, meta }, this.settings.get(), { hasInbound: this.hasInbound(fresh) }); // honours a pause or "asked for a human"
+      stage = ev.stage;
+      patch.stage = ev.stage; patch.stage_reason = ev.reason; patch.score = ev.score;
+      if (ev.stage === 'active' && !fresh.qualified_at) patch.qualified_at = Date.now();
+    }
+    const upd = await this.store.updateLead(leadId, patch);
+    if (stage !== prevStage) await this.store.addEvent(leadId, 'stage_changed', { from: prevStage, to: stage, reason: p.reason, category: p.category, ai: true, ...(p.notes.length ? { guards: p.notes } : {}) });
+    if (p.category !== prevCategory) await this.store.addEvent(leadId, 'category_changed', { from: prevCategory || null, to: p.category, evidence: p.evidence });
+    this.changed('lead', leadId);
+    if (!quiet && (stage !== prevStage)) await this.afterChange(upd, { stageChanged: true, prevStage });
+    return { placed: true, stage, prevStage, category: p.category, prevCategory, reason: p.reason, notes: p.notes };
   }
 
   async setStage(leadId, stage, reason) {
@@ -868,6 +927,7 @@ class Engine extends EventEmitter {
   async unlockStage(leadId) {
     await this.store.updateLead(leadId, { stage_locked: 0 });
     await this.reevaluateLead(leadId);
+    this.bg(this.placeLead(leadId));
   }
 
   async reevaluateLead(leadId, { apply = true } = {}) {

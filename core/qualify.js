@@ -83,6 +83,12 @@ function evaluate(lead, settings, { hasInbound = true } = {}) {
   if (lead.stage_locked) {
     return { ...base, stage: lead.stage, reason: lead.stage_reason || 'Set manually', score };
   }
+  // The assistant's judge files Instagram leads itself (category and stage, from the whole chat). Its placement wins over the old
+  // keyword-style rules below, but never over a person: an admin's manual stage, a paused chat or a request for a human stay as they are.
+  const ai = lead.meta && lead.meta.crm_ai;
+  if (ai && STAGES.includes(ai.stage) && !lead.ai_paused && !flags.wants_human) {
+    return { ...base, stage: ai.stage, reason: ai.reason || STAGE_LABELS[ai.stage], score: ai.stage === 'disqualified' ? Math.min(score, 20) : ai.stage === 'active' ? Math.max(score, 60) : score };
+  }
   if (flags.routed && !lead.ai_paused && !flags.wants_human) {
     return { ...base, stage: 'human', reason: ROUTED_REASON[flags.routed] || 'Needs a person', score };
   }
