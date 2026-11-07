@@ -43,7 +43,7 @@ HOW TO WORK (in this order; your JSON follows the same order, so write the evide
 
 5. DECIDE:
    - "send": the draft is already right for this sender. Small taste differences are NOT a reason to change it. Most good drafts should simply be sent.
-   - "fix": at least one quoted violation. Write the corrected reply yourself: keep what was right, repair only what was wrong, under about 160 characters (one or two short sentences, like the team writes), plain English only (never Hindi or Hinglish, even if the customer uses it), friendly tone, one question at most, no bullet points, no em dashes. It must pass every check and give the customer a real, warm, relevant answer that moves things forward.
+   - "fix": at least one quoted violation. Write the corrected reply yourself: keep what was right, repair only what was wrong, under about 160 characters (one or two short sentences, like the team writes), the customer's language and tone, one question at most, no bullet points, no em dashes. It must pass every check and give the customer a real, warm, relevant answer that moves things forward.
    - "silent": the right move is to send nothing (promo already acknowledged, spam, pleasantry loop, voice note alone). The chat is still flagged for the team.
 
 Answer with ONLY a JSON object, keys in this order:
