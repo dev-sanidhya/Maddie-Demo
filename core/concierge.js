@@ -8,6 +8,7 @@ const path = require('node:path');
 const { extractJson } = require('./llm');
 const { ungrounded } = require('./validator');
 const { chatKey } = require('./chatkey');
+const placement = require('./placement');
 
 const HISTORY_MAX_MSGS = 60;
 const HISTORY_MAX_CHARS = 12000;
@@ -201,6 +202,11 @@ class Concierge {
     await this.store.archiveAppend(chatKey(accountId, igsid), add).catch(() => {});
   }
 
+  // The CRM judge: reads the whole chat and says which category and stage this lead belongs in. Returns a safe placement or null.
+  classify({ lead, rows, settings, current = null, did = null, now = Date.now() }) {
+    return placement.classify({ llm: this.llm, lead, rows, settings, transcript, factsLine, now, current, did });
+  }
+
   // rows: every message of the chat in order, the new customer messages last. Returns { action, text, needsTeam, why }.
   async respond({ lead, rows, settings, now = Date.now() }) {
     const tz = settings.business.timezone || 'Asia/Kolkata';
@@ -277,4 +283,4 @@ class Concierge {
   }
 }
 
-module.exports = { Concierge, transcript, checkReply, systemPrompt, scrubPlaybook, scrubStyle };
+module.exports = { Concierge, transcript, factsLine, checkReply, systemPrompt, scrubPlaybook, scrubStyle };
