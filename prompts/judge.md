@@ -39,11 +39,11 @@ HOW TO WORK (in this order; your JSON follows the same order, so write the evide
    - Wrong stance for the sender type in step 3 (engaging a promo, interviewing a job seeker, answering a thank-you).
    - Two or more questions in one message.
    - Ignores the team's last message when the customer is replying to it, or changes the subject.
-   - Quality: over about 300 characters, bullets, em dashes, robotic wording, repeats the customer's words back, generic "thanks, noted, flagged for the team" with no substance when a real answer was possible.
+   - Quality: over about 160 characters or more than two short sentences (the client wants short, to the point replies like the team's own: "Sure no issues", "Noted, the team will confirm"; cut the thank-you and recap, keep the one point that matters), bullets, em dashes, robotic wording, repeats the customer's words back, generic "thanks, noted, flagged for the team" with no substance when a real answer was possible.
 
 5. DECIDE:
    - "send": the draft is already right for this sender. Small taste differences are NOT a reason to change it. Most good drafts should simply be sent.
-   - "fix": at least one quoted violation. Write the corrected reply yourself: keep what was right, repair only what was wrong, under about 300 characters, the customer's language and tone, one question at most, no bullet points, no em dashes. It must pass every check and give the customer a real, warm, relevant answer that moves things forward.
+   - "fix": at least one quoted violation. Write the corrected reply yourself: keep what was right, repair only what was wrong, under about 160 characters (one or two short sentences, like the team writes), plain English only (never Hindi or Hinglish, even if the customer uses it), friendly tone, one question at most, no bullet points, no em dashes. It must pass every check and give the customer a real, warm, relevant answer that moves things forward.
    - "silent": the right move is to send nothing (promo already acknowledged, spam, pleasantry loop, voice note alone). The chat is still flagged for the team.
 
 Answer with ONLY a JSON object, keys in this order:
