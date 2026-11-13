@@ -132,3 +132,7 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 - Tests: test/placement.test.js (27), scripts/regress-crm.js (48 hard chats, 46 clean, 2 gave no answer which is safe). Back-fill: scripts/place-all.js (--dry-run first); run on prod 2026-11-07: 223 leads, 81 then 7 more moved, 8 left unfiled (undecidable, stay as they were).
 - Shipped in the same deploy: shorter replies (about 160 characters), still mirrors the customer's language.
 - Next: watch the first live placements, re-run place-all for unfiled leads, add pricing and barter rules when Maddie's team replies.
+
+## Paused (2026-11-13)
+- User asked to pause production. Done: webhook unsubscribed (Graph subscribed_apps is empty), AGENT_SHADOW=1 set in Vercel production and redeployed. Nothing is received or sent.
+- To resume: subscribe the webhook (POST /api/instagram/subscribe or the console button), set AGENT_SHADOW=0 (npx vercel env add AGENT_SHADOW production --value 0 --force --yes), redeploy, then run node scripts/catch-up.js --hours=N to answer chats that waited.
