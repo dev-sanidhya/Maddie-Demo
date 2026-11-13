@@ -136,3 +136,9 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 ## Paused (2026-11-13)
 - User asked to pause production. Done: webhook unsubscribed (Graph subscribed_apps is empty), AGENT_SHADOW=1 set in Vercel production and redeployed. Nothing is received or sent.
 - To resume: subscribe the webhook (POST /api/instagram/subscribe or the console button), set AGENT_SHADOW=0 (npx vercel env add AGENT_SHADOW production --value 0 --force --yes), redeploy, then run node scripts/catch-up.js --hours=N to answer chats that waited.
+
+## Live again (2026-11-13)
+- Resumed after the pause: webhook subscribed, AGENT_SHADOW=0, redeployed. Pulled in the pause window first (sync-archive --since-hours=30), then ran catch-up.
+- catch-up.js now (a) refreshes each waiting chat from Instagram and leaves it alone if the team or we had the last word, (b) skips a conversation it cannot read instead of crashing.
+- Catch-up result: 8 replies sent, 3 chats silent on purpose (sign-offs), 1 left alone (team had answered), 4 chats Instagram refused to send to (error "message sent outside the allowed period", seen on older contacts: leads 93, 393, 394, 396). The team must answer those four from the Instagram app.
+- Still open: never reply to a message older than a day (lead 281 case); new creator leads flash "Needs human" before the judge files them.

@@ -64,7 +64,8 @@ const say = (s) => console.log(s);
   if (!skipApi) {
     const list = await ig.api('GET', '/me/conversations', { query: { platform: 'instagram', fields: 'id,updated_time', limit: '50' } }, { retries: 2 });
     for (const c of (list.data || []).filter((x) => Date.parse(x.updated_time) >= since)) {
-      const conv = await ig.api('GET', `/${c.id}`, { query: { fields: 'messages.limit(8){id,created_time,from,message}' } }, { retries: 2 });
+      let conv;
+      try { conv = await ig.api('GET', `/${c.id}`, { query: { fields: 'messages.limit(8){id,created_time,from,message}' } }, { retries: 2 }); } catch (e) { say(`could not read one conversation, skipped: ${String(e.message).slice(0, 60)}`); continue; }
       const msgs = ((conv.messages && conv.messages.data) || []).sort((a, b) => Date.parse(a.created_time) - Date.parse(b.created_time));
       const last = msgs[msgs.length - 1];
       if (!last || !last.from || String(last.from.id) === acct || !String(last.message || '').trim()) continue; // last word is ours, or not text
@@ -79,6 +80,24 @@ const say = (s) => console.log(s);
   // 3. answer everything that is waiting
   const waiting = await store.all("SELECT DISTINCT lead_id FROM messages WHERE direction='in' AND processed=0");
   say(`${waiting.length} chat(s) waiting for an answer${dry ? ' (dry run: nothing changed)' : ''}`);
+  // never answer a chat where somebody on the team (or we) already had the last word: refresh each waiting chat from Instagram first
+  const skipped = [];
+  if (!skipApi) {
+    const { chatKey } = require('../core/chatkey');
+    for (const w of waiting) {
+      const lead = await store.getLead(w.lead_id);
+      const igsid = String((lead && lead.chat_id) || '').replace(/^ig:/, '');
+      if (!igsid) continue;
+      try { await ig.fetchThread(igsid, 20); } catch { /* the archive we have is used */ }
+      const a = await store.archiveGet(chatKey(acct, igsid));
+      const last = ((a && a.msgs) || []).reduce((m, x) => (!m || Number(x.at) >= Number(m.at) ? x : m), null);
+      if (last && last.fromUs) {
+        skipped.push(w.lead_id);
+        say(`lead ${w.lead_id}: the team already answered, so it is left alone`);
+        if (!dry) await store.run("UPDATE messages SET processed=1 WHERE lead_id=? AND direction='in' AND processed=0", w.lead_id);
+      }
+    }
+  }
   if (!dry) {
     await app.engine.recover({ olderThanMs: 0, backfill: false, wait: true });
     await app.engine.idle?.();
@@ -88,7 +107,7 @@ const say = (s) => console.log(s);
       say(`  lead ${w.lead_id}: [${out ? out.status : 'none'}] ${out ? String(out.text).slice(0, 110) : ''}`);
     }
   }
-  say(`Summary: ${reset.size} chat(s) reset, ${injected} missed message(s) found.`);
+  say(`Summary: ${reset.size} chat(s) reset, ${injected} missed message(s) found, ${skipped.length} left alone because the team had answered.`);
   await store.close();
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });
