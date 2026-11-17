@@ -142,3 +142,6 @@ Reuse the lead-funnel codebase (Node 22, node:sqlite locally, Postgres on Vercel
 - catch-up.js now (a) refreshes each waiting chat from Instagram and leaves it alone if the team or we had the last word, (b) skips a conversation it cannot read instead of crashing.
 - Catch-up result: 8 replies sent, 3 chats silent on purpose (sign-offs), 1 left alone (team had answered), 4 chats Instagram refused to send to (error "message sent outside the allowed period", seen on older contacts: leads 93, 393, 394, 396). The team must answer those four from the Instagram app.
 - Still open: never reply to a message older than a day (lead 281 case); new creator leads flash "Needs human" before the judge files them.
+
+## Team-reply rule (2026-11-17)
+- A lead can no longer sit in "Needs human" when a person on the team wrote the last message (guard in core/placement.js, deployed). Press and "asked for a person" still stay with the team. scripts/refile-answered.js checks every Needs-human chat against Instagram and re-files answered ones (dry run by default, --apply to write). Run on prod: 268 Needs-human leads, 94 truly waiting, 110 hold only the assistant's holding reply, none with a team reply left; Needs human went 268 to 204.
