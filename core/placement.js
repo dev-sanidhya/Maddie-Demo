@@ -49,6 +49,11 @@ function looksAutomated(rows) {
 const ASKS = /\b(real|actual) (person|human)\b|\b(speak|talk|connect|chat) (to|with) (a |an |the |your )?(human|person|someone|somebody|team|manager|owner|founder|representative|agent)\b|\bi want (a|to speak to a) (human|person)\b/i;
 const OUT = /\b(remove me|unsubscribe|stop (messaging|texting|dm-?ing|contacting) me|do not (message|contact|dm) me|don'?t (message|contact|dm) me|leave me alone)\b/i;
 function wantsOut(rows) { return rows.filter((m) => m.direction === 'in').slice(-2).some((m) => OUT.test(String(m.text || ''))); }
+// The newest message in the chat was written by a person on our team (not by the assistant: those rows carry the assistant role).
+function teamSpokeLast(rows) {
+  const last = rows[rows.length - 1];
+  return !!last && last.direction === 'out' && last.role === 'admin';
+}
 function asksForPerson(rows) {
   const mine = rows.filter((m) => m.direction === 'in').slice(-2);
   return mine.some((m) => ASKS.test(String(m.text || '')));
@@ -75,6 +80,12 @@ function normalizePlacement(out, { rows = [], current = null } = {}) {
   if (stage === 'new' && REAL_PEOPLE.has(category) && typedWords(rows) >= 12) { notes.push('new->qualifying: a real conversation'); stage = 'qualifying'; }
   // a business's own automated greeting is never a person, whoever wrote first
   if (looksAutomated(rows) && category !== 'spam_or_bot') { notes.push(`${category}/${stage}->spam_or_bot/disqualified: an automated reply`); return { category: 'spam_or_bot', stage: 'disqualified', reason: 'Automated reply from a business, not a person', confidence: 'high', evidence: clip(out.evidence, 160), notes }; }
+  // the team had the last word (a person wrote after the customer): the customer is not blocked on us, whatever the judge said
+  if (stage === 'human' && teamSpokeLast(rows) && !asksForPerson(rows) && category !== 'press') {
+    const to = category === 'creator_pitching' ? 'qualifying' : 'active';
+    notes.push(`human->${to}: the team already answered`); stage = to;
+    if (!/team (already )?(answered|replied)/i.test(reason)) reason = clip(`${reason.replace(/[.\s]+$/, '')}. Team has answered.`, 140);
+  }
   // asking for a person is always a person's job (unless they are not a lead at all)
   // "remove me", "stop messaging me": a firm no, whoever they are
   if (wantsOut(rows) && category !== 'press' && stage !== 'disqualified') { notes.push(`${stage}->disqualified: asked to be left alone`); stage = 'disqualified'; }

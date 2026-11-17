@@ -371,3 +371,19 @@ test('PLACE: two opinions that both say "move" but name different stages move it
   await app2.engine.placeLead(l2.id);
   assert.strictEqual((await app2.store.getLead(l2.id)).stage, 'active');
 });
+
+test('PLACE guard: when the team wrote last the lead leaves "Needs human"; when the customer or the assistant did, it stays', () => {
+  const team = [row('in', 'Can you share the commercials?', 120), row('out', 'Sure, sharing the details on WhatsApp now', 30)];
+  const human = { category: 'invited_creator', stage: 'human', reason: 'Creator asked for commercials', confidence: 'high' };
+  const p = normalizePlacement(human, { rows: team });
+  assert.strictEqual(p.stage, 'active');
+  assert.match(p.reason, /Team has answered/);
+  assert.strictEqual(normalizePlacement({ ...human, category: 'creator_pitching' }, { rows: team }).stage, 'qualifying');
+  assert.strictEqual(normalizePlacement({ ...human, category: 'press' }, { rows: team }).stage, 'human', 'press stays with the team');
+  const bot = [row('in', 'Can you share the commercials?', 120), { direction: 'out', role: 'assistant', text: 'Noted, the team will confirm.', created_at: now - 30 * 60000 }];
+  assert.strictEqual(normalizePlacement(human, { rows: bot }).stage, 'human', 'a holding reply from the assistant is not an answer');
+  const customerLast = [...team, row('in', 'Great, and what about the deadline?', 5)];
+  assert.strictEqual(normalizePlacement(human, { rows: customerLast }).stage, 'human');
+  const asked = [row('out', 'Hi, offer for you', 120), row('in', 'Can I talk to a real person please?', 60), row('out', 'Hello! Daniel here', 30)];
+  assert.strictEqual(normalizePlacement({ ...human, category: 'brand_lead' }, { rows: asked }).stage, 'human', 'someone who asked for a person stays with the team even after a greeting');
+});
